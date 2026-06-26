@@ -15,16 +15,15 @@ npm install
 npx playwright install chromium   # one-time: installs browser for E2E tests (~300MB)
 ```
 
-### 2. (Optional) Supabase Setup
+### 2. Supabase Setup
 
-If you need a backend:
+This project uses our existing **self-hosted Supabase** instance:
 
-1. Create Supabase Project: [supabase.com](https://supabase.com)
-2. Copy `.env.local.example` to `.env.local`
-3. Add your Supabase credentials
-4. Uncomment the Supabase client in `src/lib/supabase.ts`
+1. Copy `.env.local.example` to `.env.local`
+2. Add the credentials for the self-hosted Supabase instance (URL + anon key — ask the team / check the secrets store; never commit them)
+3. Uncomment the Supabase client in `src/lib/supabase.ts`
 
-Skip this step if you're building frontend-only (landing pages, portfolios, etc.)
+For frontend-only work (landing pages, etc.) you can skip wiring up the client.
 
 ### 3. Start Development
 
@@ -66,7 +65,7 @@ The skill interviews you about this single feature in depth — user stories, ed
 /frontend        Build the UI for features/PROJ-1-user-auth.md
 /backend         Build the API for features/PROJ-1-user-auth.md
 /qa              Test features/PROJ-1-user-auth.md
-/deploy          Deploy to Vercel
+/deploy          Deploy via Docker + Traefik on Hetzner
 ```
 
 Each skill suggests the next step when it finishes. Handoffs are always user-initiated.
@@ -82,9 +81,9 @@ Each skill suggests the next step when it finishes. Handoffs are always user-ini
 | Spec Refiner | `/refine PROJ-X` | Reopens an existing spec to improve, extend, or challenge it |
 | Solution Architect | `/architecture` | Designs PM-friendly tech architecture (no code, only high-level design) |
 | Frontend Developer | `/frontend` | Builds UI with React, Tailwind CSS, and shadcn/ui |
-| Backend Developer | `/backend` | Builds APIs, database schemas, RLS policies with Supabase |
+| Backend Developer | `/backend` | Builds APIs, database schemas, RLS policies on self-hosted Supabase |
 | QA Engineer | `/qa` | Tests features against acceptance criteria + security audit |
-| DevOps | `/deploy` | Deploys to Vercel with production-ready checks |
+| DevOps | `/deploy` | Deploys via Docker + Traefik on Hetzner with production-ready checks |
 | Help | `/help` | Context-aware guide: shows where you are and what to do next |
 
 ### How Skills Work
@@ -106,7 +105,7 @@ Each skill suggests the next step when it finishes. Handoffs are always user-ini
 3. Build     /frontend      -->  UI components implemented
              /backend       -->  APIs + database (if needed)
 4. Test      /qa            -->  Test results added to feature spec
-5. Ship      /deploy        -->  Deployed to Vercel
+5. Ship      /deploy        -->  Deployed via Docker + Traefik on Hetzner
 ```
 
 ### Feature Tracking
@@ -130,8 +129,8 @@ Every skill reads this file at start and updates it when done, preventing duplic
 | **Language** | TypeScript | Type safety |
 | **Styling** | Tailwind CSS | Utility-first CSS |
 | **UI Library** | shadcn/ui | Copy-paste, customizable components |
-| **Backend** | Supabase (optional) | PostgreSQL + Auth + Storage + Realtime |
-| **Deployment** | Vercel | Zero-config Next.js hosting |
+| **Backend** | Self-hosted Supabase | PostgreSQL + Auth + Storage + Realtime |
+| **Deployment** | Docker + Traefik on Hetzner | Self-hosted, containerized Next.js behind a reverse proxy |
 | **Validation** | Zod | Runtime type validation |
 
 ---
@@ -205,7 +204,7 @@ npx shadcn@latest add [component-name]
 ### 4. Production Setup (first deployment)
 
 When you're ready to deploy, the `/deploy` skill guides you through:
-- Vercel setup and deployment
+- Docker + Traefik deployment on Hetzner
 - Error tracking with Sentry
 - Security headers configuration
 - Performance monitoring with Lighthouse

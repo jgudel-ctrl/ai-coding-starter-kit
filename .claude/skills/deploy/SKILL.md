@@ -1,7 +1,7 @@
 ---
 name: deploy
-description: Deploy to Vercel with production-ready checks, error tracking, and security headers setup.
-argument-hint: "feature-spec-path or 'to Vercel'"
+description: Deploy via Docker + Traefik on Hetzner with production-ready checks, error tracking, and security headers setup.
+argument-hint: "feature-spec-path or 'to staging' / 'to production'"
 user-invocable: true
 ---
 
@@ -24,33 +24,48 @@ You are an experienced DevOps Engineer handling deployment, environment setup, a
 - [ ] QA Engineer has approved the feature (check feature spec)
 - [ ] No Critical/High bugs in test report
 - [ ] All environment variables documented in `.env.local.example`
-- [ ] No secrets committed to git
-- [ ] All database migrations applied in Supabase (if applicable)
+- [ ] No secrets committed to git (env files live on the server / in the secrets store, not in the repo)
+- [ ] All database migrations applied on the self-hosted Supabase instance (if applicable)
 - [ ] All code committed and pushed to remote
 
-### 2. Vercel Setup (first deployment only)
+## Environments
 
-> **Prerequisite (manual, do this first):** The user must create a Vercel account in the browser before this step — go to [vercel.com](https://vercel.com) and sign up (e.g. "Sign up with GitHub"). Account creation and login are browser/OAuth steps that cannot be automated by the skill. Also ensure the repo is pushed to a GitHub remote so Vercel can connect to it.
+| Environment | Domain | Purpose |
+|-------------|--------|---------|
+| Staging | `tms-staging.gudel-werkzeuge.de` | Validate a feature before production |
+| Production | `tms.gudel-werkzeuge.de` | Live system |
+
+> Domains are planned and will be wired up via Traefik routing labels once DNS is pointed at the Hetzner host. Until DNS is live, deploy and test against the server IP / a temporary host.
+
+### 2. Infrastructure Setup (first deployment only)
+
+> **Prerequisites (manual, do these first):**
+> - SSH access to the Hetzner host.
+> - Docker and a Traefik reverse proxy already running on the host (Traefik terminates TLS via Let's Encrypt and routes by hostname).
+> - The existing self-hosted Supabase instance reachable from the app container.
+> - DNS records for `tms.gudel-werkzeuge.de` and `tms-staging.gudel-werkzeuge.de` pointing at the host (can be added later — see note above).
 
 Guide the user through:
-- [ ] Create Vercel project: `npx vercel` or via vercel.com
-- [ ] Connect GitHub repository for auto-deploy on push
-- [ ] Add all environment variables from `.env.local.example` in Vercel Dashboard
-- [ ] Build settings: Framework Preset = Next.js (auto-detected)
-- [ ] Configure domain (or use default `*.vercel.app`)
+- [ ] Add a `Dockerfile` (multi-stage Next.js standalone build) and a `docker-compose.yml` service for the app
+- [ ] Set `output: 'standalone'` in `next.config.ts` so the image stays small
+- [ ] Attach the app service to the shared Traefik Docker network
+- [ ] Add Traefik labels for host routing + TLS, e.g. `traefik.http.routers.tms.rule=Host(\`tms.gudel-werkzeuge.de\`)` (and a separate router for the staging host)
+- [ ] Provide environment variables via an `.env` file on the server or compose `env_file:` — point `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` at the self-hosted Supabase instance (never commit these)
 
 ### 3. Deploy
-- Push to main branch → Vercel auto-deploys
-- Or manual: `npx vercel --prod`
-- Monitor build in Vercel Dashboard
+- Build and ship the image to the Hetzner host (e.g. `docker compose build` + `docker compose up -d`, or build/push to a registry and pull on the host)
+- Deploy to **staging** first (`tms-staging.gudel-werkzeuge.de`), verify, then promote the same image to **production** (`tms.gudel-werkzeuge.de`)
+- Traefik picks up the container via its labels and routes the configured host to it
+- Watch the rollout: `docker compose logs -f` (app) and the Traefik dashboard/logs for routing & TLS
 
 ### 4. Post-Deployment Verification
-- [ ] Production URL loads correctly
+- [ ] Production URL (`https://tms.gudel-werkzeuge.de`) loads correctly
 - [ ] Deployed feature works as expected
-- [ ] Database connections work (if applicable)
+- [ ] Database connections to self-hosted Supabase work (if applicable)
 - [ ] Authentication flows work (if applicable)
+- [ ] TLS certificate is valid (Traefik / Let's Encrypt)
 - [ ] No errors in browser console
-- [ ] No errors in Vercel function logs
+- [ ] No errors in container logs (`docker compose logs`)
 
 ### 5. Production-Ready Essentials
 
@@ -70,33 +85,41 @@ For first deployment, guide the user through these setup guides:
 
 ## Common Issues
 
-### Build fails on Vercel but works locally
-- Check Node.js version (Vercel may use different version)
+### Build fails in Docker but works locally
+- Check the Node.js version in the `Dockerfile` base image matches local
 - Ensure all dependencies are in package.json (not just devDependencies)
-- Review Vercel build logs for specific error
+- Review the `docker compose build` output for the specific error
+- Confirm `next.config.ts` uses `output: 'standalone'` so the runtime image has everything it needs
 
 ### Environment variables not available
-- Verify vars are set in Vercel Dashboard (Settings → Environment Variables)
-- Client-side vars need `NEXT_PUBLIC_` prefix
-- Redeploy after adding new env vars (they don't apply retroactively)
+- Verify vars are present in the server `.env` / compose `env_file:` and the container was recreated (`docker compose up -d`)
+- Client-side vars need the `NEXT_PUBLIC_` prefix and are baked in at **build** time — rebuild the image after changing them
+- Restart/recreate the container after changing server-only vars (they don't apply retroactively)
 
 ### Database connection errors
-- Verify Supabase URL and anon key in Vercel env vars
+- Verify the self-hosted Supabase URL and anon key in the server env
+- Confirm the app container can reach the Supabase instance (shared Docker network / host firewall)
 - Check RLS policies allow the operations being attempted
-- Verify Supabase project is not paused (free tier pauses after inactivity)
+
+### Routing / TLS issues (Traefik)
+- Verify the Traefik `Host(...)` label matches the requested domain exactly
+- Confirm DNS for the domain resolves to the Hetzner host
+- Check the Traefik logs for ACME/Let's Encrypt certificate errors
+- Ensure the app service is on the same Docker network as Traefik
 
 ## Rollback Instructions
 If production is broken:
-1. **Immediate:** Vercel Dashboard → Deployments → Click "..." on previous working deployment → "Promote to Production"
+1. **Immediate:** Re-deploy the previous known-good image tag on the host (`docker compose up -d` with the prior tag), so Traefik routes to the working container again
 2. **Fix locally:** Debug the issue, `npm run build`, commit, push
-3. Vercel auto-deploys the fix
+3. Build the fixed image, deploy to staging, verify, then promote to production
 
 ## Full Deployment Checklist
 - [ ] Pre-deployment checks all pass
-- [ ] Vercel build successful
+- [ ] Docker image builds successfully
+- [ ] Deployed to staging and verified first
 - [ ] Production URL loads and works
 - [ ] Feature tested in production environment
-- [ ] No console errors, no Vercel log errors
+- [ ] No console errors, no container log errors
 - [ ] Error tracking setup (Sentry or alternative)
 - [ ] Security headers configured in next.config
 - [ ] Lighthouse score checked (target > 90)
@@ -109,6 +132,6 @@ If production is broken:
 ```
 deploy(PROJ-X): Deploy [feature name] to production
 
-- Production URL: https://your-app.vercel.app
+- Production URL: https://tms.gudel-werkzeuge.de
 - Deployed: YYYY-MM-DD
 ```

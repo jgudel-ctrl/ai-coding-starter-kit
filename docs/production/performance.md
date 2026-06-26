@@ -63,5 +63,6 @@ export const getStats = unstable_cache(
 - [ ] No unnecessary client-side JavaScript (`"use client"` only when needed)
 
 ## Automated Monitoring
-- **Vercel Analytics** - Automatic on Pro plan, shows Core Web Vitals
-- **Vercel Speed Insights** - Real user performance data
+- **Self-hosted analytics** (e.g. Plausible or Umami) - runs as a Docker container behind Traefik on Hetzner; privacy-friendly page/traffic metrics
+- **Web Vitals → your backend** - report `next/web-vitals` to an endpoint (or Sentry/GlitchTip) for real-user performance data without a third-party SaaS
+- **Traefik access logs / metrics** - request rates, latencies and status codes at the proxy level (optionally scraped by Prometheus + Grafana)

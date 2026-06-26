@@ -6,8 +6,8 @@
 
 - **Framework:** Next.js 16 (App Router), TypeScript
 - **Styling:** Tailwind CSS + shadcn/ui (copy-paste components)
-- **Backend:** Supabase (PostgreSQL + Auth + Storage) - optional
-- **Deployment:** Vercel
+- **Backend:** Self-hosted Supabase (PostgreSQL + Auth + Storage)
+- **Deployment:** Docker + Traefik on Hetzner
 - **Validation:** Zod + react-hook-form
 - **State:** React useState / Context API
 
@@ -35,7 +35,7 @@ docs/
 4. `/frontend` - Build UI components (shadcn/ui first!)
 5. `/backend` - Build APIs, database, RLS policies
 6. `/qa` - Test against acceptance criteria + security audit
-7. `/deploy` - Deploy to Vercel + production-ready checks
+7. `/deploy` - Deploy via Docker + Traefik on Hetzner + production-ready checks
 
 Use `/refine PROJ-X` at any point to revisit and improve an existing feature spec.
 

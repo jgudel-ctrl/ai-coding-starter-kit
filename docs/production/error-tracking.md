@@ -18,7 +18,7 @@ This automatically:
 - Updates `next.config.ts` with Sentry webpack plugin
 
 ### 3. Add Environment Variables
-Add to `.env.local` (local) and Vercel Dashboard (production):
+Add to `.env.local` (local) and to the server env on Hetzner — the `.env` file / compose `env_file:` used by the Docker container (production):
 ```bash
 SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
 NEXT_PUBLIC_SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
@@ -40,4 +40,4 @@ throw new Error("Sentry test error")
 - Performance monitoring (optional)
 
 ## Alternative
-**Vercel Error Tracking** - Built-in, simpler, but fewer features. Available in Vercel Dashboard under "Monitoring".
+**Self-hosted GlitchTip** - Sentry-compatible and open source; can run as another Docker container behind Traefik on the same Hetzner host if you prefer to keep error data in-house. Uses the same `@sentry/nextjs` SDK — just point the DSN at your GlitchTip instance.

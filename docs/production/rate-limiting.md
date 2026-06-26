@@ -97,5 +97,6 @@ export const config = {
 | General API | 30 requests | 10 seconds |
 | File Upload | 5 requests | 1 minute |
 
-## Alternative
-**Vercel Edge Config** - Simpler but less flexible. Built into Vercel, no external service needed.
+## Alternatives
+- **Self-hosted Redis** - run a Redis container alongside the app on Hetzner and point `@upstash/ratelimit` at it via the `ioredis`/`redis` adapter (no external SaaS, data stays on your host).
+- **Traefik rate-limit middleware** - enforce coarse per-IP limits at the proxy level with a `rateLimit` middleware label. Simpler, but less flexible than per-route application logic above.
