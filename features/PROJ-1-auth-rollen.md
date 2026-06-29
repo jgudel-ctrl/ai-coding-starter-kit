@@ -257,4 +257,27 @@ Gebaut im `/backend`-Schritt. Build grün, 13 Unit-Tests grün, Live-Smoke-Test 
 
 ## Deployment
 
-_Wird vom DevOps Engineer nach `/deploy` ergänzt._
+**Status:** ✅ Deployed
+**Datum:** 2026-06-29
+**URL:** https://tms.gudel-werkzeuge.de
+**Container:** `tms` (Docker Compose)
+**Reverse Proxy:** Traefik (SSL via Let's Encrypt)
+
+### Deploy-Schritte
+1. `Dockerfile` erstellt (Multi-stage, Node 24 Alpine, standalone output)
+2. `docker-compose.yml` erstellt (Traefik-Labels, `.env.production`)
+3. `next.config.ts` auf `output: 'standalone'` gesetzt
+4. Build mit Build-Args (`NEXT_PUBLIC_*`)
+5. Container gestartet, Traefik-Labels aktiv
+6. Health-Check: HTTP 200 auf `/login`, deutsche Login-Seite korrekt gerendert
+
+### Env-Variablen (`.env.production`)
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+### Nächste Schritte
+- DNS `tms.gudel-werkzeuge.de` → Server-IP muss ggf. geprüft werden
+- Erster Admin-Login mit `FIRST_ADMIN_PASSWORD.txt` empfohlen
+- E2E-Tests nachrüsten
+- PROJ-2 (Werkzeug-Stammdaten) starten

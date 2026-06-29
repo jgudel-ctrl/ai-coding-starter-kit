@@ -15,7 +15,7 @@
 
 | ID | Feature | Status | Spec | Created |
 |----|---------|--------|------|---------|
-| PROJ-1  | Auth & Rollen (Invite-only, 7 Rollen, RLS) | Approved | [PROJ-1](PROJ-1-auth-rollen.md) | 2026-06-29 |
+| PROJ-1  | Auth & Rollen (Invite-only, 7 Rollen, RLS) | Deployed | [PROJ-1](PROJ-1-auth-rollen.md) | 2026-06-29 |
 | PROJ-2  | Werkzeug-Stammdaten (CRUD + Suche) | Roadmap | — | 2026-06-29 |
 | PROJ-3  | Stations-Workflow & Status-Tracking (Kern) | Roadmap | — | 2026-06-29 |
 | PROJ-4  | Stations-Arbeitslisten | Roadmap | — | 2026-06-29 |
