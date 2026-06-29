@@ -15,7 +15,17 @@
 
 | ID | Feature | Status | Spec | Created |
 |----|---------|--------|------|---------|
+| PROJ-1  | Auth & Rollen (Invite-only, 7 Rollen, RLS) | Approved | [PROJ-1](PROJ-1-auth-rollen.md) | 2026-06-29 |
+| PROJ-2  | Werkzeug-Stammdaten (CRUD + Suche) | Roadmap | — | 2026-06-29 |
+| PROJ-3  | Stations-Workflow & Status-Tracking (Kern) | Roadmap | — | 2026-06-29 |
+| PROJ-4  | Stations-Arbeitslisten | Roadmap | — | 2026-06-29 |
+| PROJ-5  | Arbeitsvorbereitung — Pfad/Auftrag festlegen | Roadmap | — | 2026-06-29 |
+| PROJ-6  | QS-Station — Prüfen, Freigabe, Rückläufer | Roadmap | — | 2026-06-29 |
+| PROJ-7  | Dashboard & Kennzahlen (Bento, Charts) | Roadmap | — | 2026-06-29 |
+| PROJ-8  | Externe Bearbeitung & Fahrer-Transporte | Roadmap | — | 2026-06-29 |
+| PROJ-9  | Benachrichtigungen (Rückläufer/Engpässe) | Roadmap | — | 2026-06-29 |
+| PROJ-10 | Dark Mode | Roadmap | — | 2026-06-29 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-1
+## Next Available ID: PROJ-11

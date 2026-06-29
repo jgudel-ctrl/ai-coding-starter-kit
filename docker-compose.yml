@@ -1,0 +1,24 @@
+services:
+  tms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tms
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=https://supabase.gudel-werkzeuge.de
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tms.rule=Host(`tms.gudel-werkzeuge.de`)"
+      - "traefik.http.routers.tms.entrypoints=websecure"
+      - "traefik.http.routers.tms.tls.certresolver=le"
+      - "traefik.http.services.tms.loadbalancer.server.port=3000"
+
+networks:
+  web:
+    external: true

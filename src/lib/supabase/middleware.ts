@@ -1,0 +1,85 @@
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+import type { UserRole, UserStatus } from "@/lib/roles";
+
+const PUBLIC_PATHS = ["/login", "/passwort-vergessen", "/auth"];
+const PASSWORD_PATH = "/passwort-aendern";
+
+/**
+ * Erneuert die Supabase-Session und erzwingt den Routenschutz:
+ * - nicht angemeldet -> /login
+ * - deaktiviert -> abmelden + /login?error=disabled
+ * - Passwortwechsel offen -> /passwort-aendern
+ * - /verwaltung nur für Rolle "admin"
+ */
+export async function updateSession(request: NextRequest) {
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { pathname } = request.nextUrl;
+  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+  // Redirect-Helfer: behält die ggf. erneuerten Session-Cookies bei.
+  const redirectTo = (path: string, params?: Record<string, string>) => {
+    const url = request.nextUrl.clone();
+    url.pathname = path;
+    url.search = "";
+    if (params) for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    const redirect = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
+  };
+
+  if (!user) {
+    return isPublic ? response : redirectTo("/login");
+  }
+
+  // Angemeldet: Profil prüfen (RLS erlaubt das eigene Profil).
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, status, must_change_password")
+    .eq("id", user.id)
+    .single<{ role: UserRole; status: UserStatus; must_change_password: boolean }>();
+
+  if (!profile || profile.status === "deaktiviert") {
+    await supabase.auth.signOut();
+    return redirectTo("/login", { error: "disabled" });
+  }
+
+  if (profile.must_change_password && pathname !== PASSWORD_PATH) {
+    return redirectTo(PASSWORD_PATH);
+  }
+
+  if (pathname === "/login" || pathname === "/") {
+    return redirectTo("/dashboard");
+  }
+
+  if (pathname.startsWith("/verwaltung") && profile.role !== "admin") {
+    return redirectTo("/dashboard");
+  }
+
+  return response;
+}
