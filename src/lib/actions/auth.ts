@@ -1,10 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAppOrigin } from "@/lib/app-url";
 import {
   loginSchema,
   changePasswordSchema,
@@ -50,13 +50,8 @@ export async function requestPasswordResetAction(
   const parsed = resetRequestSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Bitte eine gültige E-Mail eingeben." };
 
-  // Origin aus den Request-Headern (für den Rücklink in der E-Mail).
-  // In Docker liefert host oft 0.0.0.0:3000 — daher ENV als Quelle der Wahrheit.
-  const h = await headers();
-  const origin =
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    h.get("origin") ??
-    (h.get("host") ? `https://${h.get("host")}` : "");
+  // Öffentliche Basis-URL (APP_URL bzw. Traefik-Forwarded-Header) — nie 0.0.0.0.
+  const origin = await getAppOrigin();
 
   const supabase = await createClient();
   // Bei unbekannter E-Mail bewusst KEINE abweichende Antwort (keine Enumeration).

@@ -233,6 +233,11 @@ Gebaut im `/backend`-Schritt. Build grün, 13 Unit-Tests grün, Live-Smoke-Test 
 - **SMTP** auf dem self-hosted Supabase (IONOS) ist konfiguriert → Mails werden zugestellt.
 - ⚠️ **Dev-Test:** `GOTRUE_URI_ALLOW_LIST` erlaubt nur `tms.gudel-werkzeuge.de`/`tms-staging…`. Für lokales E-Mail-Testen müsste `http://localhost:3000/**` zur Allow-List ergänzt und `supabase-auth` neu gestartet werden; in Produktion funktioniert es ohne Änderung.
 
+### Hotfix — Reset-Link zeigte auf `0.0.0.0:3000` (2026-06-30)
+**Bug:** In Produktion führte der Recovery-Link auf `0.0.0.0:3000/...` (ERR_ADDRESS_INVALID).
+**Ursachen:** (1) `/auth/confirm` nutzte `new URL(request.url).origin` → hinter Traefik die container-interne Adresse (`HOSTNAME=0.0.0.0`); (2) `NEXT_PUBLIC_SITE_URL` wird zur Build-Zeit eingebacken, war aber kein Build-Arg → zur Laufzeit leer.
+**Fix:** Neuer Helper `src/lib/app-url.ts` (`getAppOrigin()`): `APP_URL` (server-seitige Laufzeit-Var) → Traefik `x-forwarded-*` → Host. Genutzt in `requestPasswordResetAction` und `/auth/confirm`. `APP_URL=https://tms.gudel-werkzeuge.de` in `.env.production`. Image neu gebaut + deployed; verifiziert: `APP_URL` in Container-Env, Login live 200.
+
 ---
 
 ## QA Test Results
