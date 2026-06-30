@@ -71,3 +71,17 @@ npm run test:all     # Both test suites
 ## Feature Overview
 
 @features/INDEX.md
+
+## Pflicht-Workflow
+
+Für jedes neue Feature und jede Code-Änderung gilt verbindlich:
+`/write-spec` → User-Review → `/architecture` → User-Review →
+`/frontend` → `/backend` → `/qa` → `/deploy`
+
+Nach `/write-spec` und nach `/architecture` wird **IMMER** auf explizites
+"approved" vom User gewartet, bevor der nächste Schritt beginnt.
+
+Ausnahme: Trivialer Hotfix (z.B. Einzeiler, ENV-Variable),
+**NUR** wenn der User das Wort "Hotfix" explizit verwendet.
+Dann darf der volle Workflow übersprungen werden,
+aber die Spec/INDEX muss danach trotzdem aktualisiert werden.
