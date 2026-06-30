@@ -51,10 +51,12 @@ export async function requestPasswordResetAction(
   if (!parsed.success) return { ok: false, error: "Bitte eine gültige E-Mail eingeben." };
 
   // Origin aus den Request-Headern (für den Rücklink in der E-Mail).
+  // In Docker liefert host oft 0.0.0.0:3000 — daher ENV als Quelle der Wahrheit.
   const h = await headers();
   const origin =
+    process.env.NEXT_PUBLIC_SITE_URL ??
     h.get("origin") ??
-    (h.get("host") ? `https://${h.get("host")}` : process.env.NEXT_PUBLIC_SITE_URL ?? "");
+    (h.get("host") ? `https://${h.get("host")}` : "");
 
   const supabase = await createClient();
   // Bei unbekannter E-Mail bewusst KEINE abweichende Antwort (keine Enumeration).
