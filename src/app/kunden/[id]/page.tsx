@@ -13,9 +13,10 @@ import { OrderHistoryTable } from "./components/order-history-table";
 export default async function KundeDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const result = await getPartnerById(params.id);
+  const { id } = await params;
+  const result = await getPartnerById(id);
 
   if (!result.ok) {
     notFound();
@@ -35,7 +36,7 @@ export default async function KundeDetailPage({
 
   // Umsatz-Daten laden (aktuelles Jahr)
   const currentYear = new Date().getFullYear();
-  const revenueResult = await getPartnerRevenue(params.id, currentYear);
+  const revenueResult = await getPartnerRevenue(id, currentYear);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -77,16 +78,16 @@ export default async function KundeDetailPage({
               rechnungsAdresse={rechnungsAdresse}
               lieferAdresse={lieferAdresse}
               contacts={contacts}
-              partnerId={params.id}
+              partnerId={id}
             />
           ),
           revenue: (
             <RevenueTab
-              partnerId={params.id}
+              partnerId={id}
               revenueData={revenueResult.ok ? revenueResult.data : []}
             />
           ),
-          orders: <OrderHistoryTab partnerId={params.id} />,
+          orders: <OrderHistoryTab partnerId={id} />,
         }}
       />
     </div>

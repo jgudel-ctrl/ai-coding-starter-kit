@@ -56,6 +56,141 @@ export type PartnerActionResult =
   | { ok: true; data: any }
   | { ok: false; error: string };
 
+export type PartnerWithRevenue = Partner & {
+  current_year_revenue: number;
+  shipping_address?: PartnerAddress | null;
+};
+
+/**
+ * Kunden laden, sortiert nach aktuellem Jahresumsatz (höchster zuerst).
+ * Lädt ALLE aktiven Kunden (mit Paginierung, da >1000) -> Umsatz
+ * in der Datenbank aufsummieren -> Top 20 zurückgeben.
+ */
+export async function getPartnersWithRevenue(
+  search?: string,
+): Promise<{ ok: true; data: PartnerWithRevenue[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const currentYear = new Date().getFullYear();
+
+  // 1. Alle aktiven Kunden laden (mit Paginierung, da Supabase nur 1000/Zeile liefert)
+  let query = supabase
+    .schema("tms")
+    .from("partners")
+    .select("*")
+    .eq("is_active", true)
+    .eq("is_archived", false);
+
+  if (search) {
+    const isNumeric = /^\d+$/.test(search);
+    if (isNumeric) {
+      query = query.or(
+        `company_name.ilike.%${search}%,display_name.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,easybill_customer_number.eq.${search}`
+      );
+    } else {
+      query = query.or(
+        `company_name.ilike.%${search}%,display_name.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`
+      );
+    }
+  }
+
+  const PAGE = 1000;
+  let partners: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: chunk, error } = await query.range(from, from + PAGE - 1);
+    if (error) {
+      console.error("[getPartnersWithRevenue]", error);
+      return { ok: false, error: "Konnte Kunden nicht laden." };
+    }
+    if (!chunk || chunk.length === 0) break;
+    partners = partners.concat(chunk);
+    if (chunk.length < PAGE) break;
+    from += PAGE;
+  }
+
+  if (partners.length === 0) {
+    return { ok: true, data: [] };
+  }
+
+  // 2. Umsatz-Daten für ALLE Partner laden (in Batches)
+  const partnerIds = partners.map((p) => p.id);
+  const revenueByPartner = new Map<string, number>();
+  const BATCH_SIZE = 100;
+
+  for (let i = 0; i < partnerIds.length; i += BATCH_SIZE) {
+    const batchIds = partnerIds.slice(i, i + BATCH_SIZE);
+    const { data: revenueData, error: revenueError } = await supabase
+      .schema("tms")
+      .from("mv_partner_monthly_revenue")
+      .select("partner_id, revenue_total")
+      .eq("year", currentYear)
+      .in("partner_id", batchIds);
+
+    if (revenueError) {
+      console.error("[getPartnersWithRevenue] Revenue:", revenueError);
+      continue;
+    }
+
+    if (revenueData) {
+      for (const row of revenueData) {
+        const current = revenueByPartner.get(row.partner_id) || 0;
+        revenueByPartner.set(row.partner_id, current + Number(row.revenue_total));
+      }
+    }
+  }
+
+  // 3. Partner mit Umsatz verknüpfen
+  const partnersWithRevenue: PartnerWithRevenue[] = partners.map((p) => ({
+    ...p,
+    current_year_revenue: revenueByPartner.get(p.id) || 0,
+    shipping_address: null,
+  }));
+
+  // 4. Sortieren: Mit Umsatz zuerst (absteigend), dann alphabetisch
+  partnersWithRevenue.sort((a, b) => {
+    const aHasRevenue = a.current_year_revenue > 0;
+    const bHasRevenue = b.current_year_revenue > 0;
+    if (aHasRevenue && !bHasRevenue) return -1;
+    if (!aHasRevenue && bHasRevenue) return 1;
+    if (aHasRevenue && bHasRevenue) {
+      return b.current_year_revenue - a.current_year_revenue;
+    }
+    return (a.display_name || "").localeCompare(b.display_name || "");
+  });
+
+  // 5. Top 20 auswählen
+  const sortedPartners = partnersWithRevenue.slice(0, 20);
+
+  // 6. Lieferadressen nur für die Top 20 laden
+  const top20Ids = sortedPartners.map((p) => p.id);
+  const { data: addressesData, error: addressesError } = await supabase
+    .schema("tms")
+    .from("partner_addresses")
+    .select("*")
+    .in("partner_id", top20Ids)
+    .eq("address_type", "shipping");
+
+  if (addressesError) {
+    console.error("[getPartnersWithRevenue] Addresses:", addressesError);
+  }
+
+  // 7. Adressen zuordnen
+  const shippingAddressByPartner = new Map<string, PartnerAddress>();
+  if (addressesData) {
+    for (const addr of addressesData) {
+      shippingAddressByPartner.set(addr.partner_id, addr);
+    }
+  }
+
+  // 8. Adressen einfügen
+  const result: PartnerWithRevenue[] = sortedPartners.map((p) => ({
+    ...p,
+    shipping_address: shippingAddressByPartner.get(p.id) || null,
+  }));
+
+  return { ok: true, data: result };
+}
+
 /**
  * Alle Partners (Kunden) laden mit optionaler Suche
  */
