@@ -2,12 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getPartnerById } from "@/lib/actions/partners";
-import { getPartnerRevenue } from "@/lib/actions/revenue";
 import { TabContainer } from "./components/tab-container";
 import { AddressCard } from "./components/address-card";
 import { ContactsList } from "./components/contacts-list";
 import { RevenueChart } from "./components/revenue-chart";
-import { RevenueSummary } from "./components/revenue-summary";
 import { OrderHistoryTable } from "./components/order-history-table";
 
 export default async function KundeDetailPage({
@@ -33,10 +31,6 @@ export default async function KundeDetailPage({
   const lieferAdresse = addresses.find(
     (a) => a.address_type === "shipping"
   );
-
-  // Umsatz-Daten laden (aktuelles Jahr)
-  const currentYear = new Date().getFullYear();
-  const revenueResult = await getPartnerRevenue(id, currentYear);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -82,10 +76,7 @@ export default async function KundeDetailPage({
             />
           ),
           revenue: (
-            <RevenueTab
-              partnerId={id}
-              revenueData={revenueResult.ok ? revenueResult.data : []}
-            />
+            <RevenueTab partnerId={id} />
           ),
           orders: <OrderHistoryTab partnerId={id} />,
         }}
@@ -202,16 +193,9 @@ function OverviewTab({
 
 /* ────────────────────── UMSATZ TAB ────────────────────── */
 
-function RevenueTab({
-  partnerId,
-  revenueData,
-}: {
-  partnerId: string;
-  revenueData: any[];
-}) {
+function RevenueTab({ partnerId }: { partnerId: string }) {
   return (
     <div className="space-y-6">
-      <RevenueSummary data={revenueData} />
       <RevenueChart partnerId={partnerId} />
     </div>
   );

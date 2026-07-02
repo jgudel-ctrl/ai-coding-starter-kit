@@ -12,12 +12,20 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Wrench, Package, ReceiptText, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import {
-  getPartnerRollingRevenue,
+  getPartnerRevenueWithComparison,
   getPartnerYearlyRevenue,
-  RollingMonth,
+  getAvailableRevenueYears,
+  MonthlyRevenue,
   YearlyRevenue,
 } from "@/lib/actions/revenue";
 
@@ -27,11 +35,16 @@ interface RevenueChartProps {
 
 type ViewMode = "month" | "year";
 
+const MONTHS = [
+  "Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
+  "Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
+];
+
 function formatMoney(value: number): string {
   return `€${value.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function calculateTotals(data: RollingMonth[]) {
+function calculateTotals(data: MonthlyRevenue[]) {
   return data.reduce(
     (acc, item) => ({
       handel: acc.handel + item.revenue_retail,
@@ -63,14 +76,17 @@ function ChangeIndicator({ current, previous }: { current: number; previous: num
 function RevenueSummary({
   data,
   previousYearData,
-  periodLabel,
+  selectedPeriod,
 }: {
-  data: RollingMonth[];
-  previousYearData?: RollingMonth[];
-  periodLabel: string;
+  data: MonthlyRevenue[];
+  previousYearData?: MonthlyRevenue[];
+  selectedPeriod: string;
 }) {
   const totals = calculateTotals(data);
   const previousTotals = previousYearData ? calculateTotals(previousYearData) : null;
+
+  const displayYear = selectedPeriod === "ytd" ? new Date().getFullYear() : parseInt(selectedPeriod);
+  const periodLabel = selectedPeriod === "ytd" ? `YTD ${displayYear}` : displayYear.toString();
 
   const cards = [
     {
@@ -118,9 +134,9 @@ function RevenueSummary({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Umsatz {periodLabel}
-        {previousYearData && previousYearData.length > 0 && (
-          <span className="ml-2 text-xs">(Vergleich: Vorherige 12 Monate)</span>
+        Umsatz für {periodLabel}
+        {previousYearData && (
+          <span className="ml-2 text-xs">(Vergleich mit {displayYear - 1})</span>
         )}
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -156,67 +172,87 @@ function RevenueSummary({
 
 export function RevenueChart({ partnerId }: RevenueChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("month");
-  
-  // Rolling 12 Months
-  const [currentPeriod, setCurrentPeriod] = useState<RollingMonth[]>([]);
-  const [previousPeriod, setPreviousPeriod] = useState<RollingMonth[]>([]);
-  const [hasPreviousPeriod, setHasPreviousPeriod] = useState(false);
-  
-  // Jahresdaten
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("ytd");
+  const [years, setYears] = useState<number[]>([]);
+  const [currentData, setCurrentData] = useState<MonthlyRevenue[]>([]);
+  const [previousData, setPreviousData] = useState<MonthlyRevenue[]>([]);
   const [yearlyData, setYearlyData] = useState<YearlyRevenue[]>([]);
-  
+  const [hasPreviousYear, setHasPreviousYear] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Rolling 12 Months laden
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1; // 1-12
+
+  // Verfügbare Jahre laden
   useEffect(() => {
-    async function loadRolling() {
+    async function loadYears() {
+      const result = await getAvailableRevenueYears(partnerId);
+      if (result.ok && result.years.length > 0) {
+        setYears(result.years);
+        // Default: YTD wenn aktuelles Jahr vorhanden, sonst neuestes Jahr
+        if (result.years.includes(currentYear)) {
+          setSelectedPeriod("ytd");
+        } else {
+          setSelectedPeriod(result.years[0].toString());
+        }
+      } else {
+        setYears([currentYear]);
+        setSelectedPeriod("ytd");
+      }
+    }
+    loadYears();
+  }, [partnerId]);
+
+  // Monatsdaten laden (mit Vorjahr)
+  useEffect(() => {
+    async function loadMonthlyData() {
       if (viewMode !== "month") return;
+      
+      const year = selectedPeriod === "ytd" ? currentYear : parseInt(selectedPeriod);
+      if (!year) return;
+      
       setIsLoading(true);
-      const result = await getPartnerRollingRevenue(partnerId);
+      const result = await getPartnerRevenueWithComparison(partnerId, year);
       if (result.ok) {
-        setCurrentPeriod(result.currentPeriod);
-        setPreviousPeriod(result.previousPeriod);
-        setHasPreviousPeriod(result.hasPreviousPeriod);
+        // Wenn YTD: Nur Monate bis aktuellen Monat behalten, Rest auf 0
+        let filteredCurrent = result.currentData;
+        let filteredPrevious = result.previousData;
+        
+        if (selectedPeriod === "ytd") {
+          filteredCurrent = result.currentData.map((item) =>
+            item.month <= currentMonth
+              ? item
+              : { ...item, revenue_service: 0, revenue_retail: 0, revenue_custom: 0, revenue_total: 0, gross_profit: 0, invoice_count: 0 }
+          );
+          filteredPrevious = result.previousData.map((item) =>
+            item.month <= currentMonth
+              ? item
+              : { ...item, revenue_service: 0, revenue_retail: 0, revenue_custom: 0, revenue_total: 0, gross_profit: 0, invoice_count: 0 }
+          );
+        }
+        
+        setCurrentData(filteredCurrent);
+        setPreviousData(filteredPrevious);
+        setHasPreviousYear(result.hasPreviousYear);
       }
       setIsLoading(false);
     }
-    loadRolling();
-  }, [partnerId, viewMode]);
-
-  // Jahresdaten laden
-  useEffect(() => {
-    async function loadYearly() {
-      if (viewMode !== "year") return;
-      setIsLoading(true);
-      const result = await getPartnerYearlyRevenue(partnerId);
-      if (result.ok) {
-        setYearlyData(result.years);
-      }
-      setIsLoading(false);
-    }
-    loadYearly();
-  }, [partnerId, viewMode]);
-
-  const periodLabel = useMemo(() => {
-    if (currentPeriod.length === 0) return "letzte 12 Monate";
-    const first = currentPeriod[0];
-    const last = currentPeriod[currentPeriod.length - 1];
-    return `${first.label} – ${last.label}`;
-  }, [currentPeriod]);
+    loadMonthlyData();
+  }, [partnerId, selectedPeriod, viewMode]);
 
   const monthChartData = useMemo(() => {
-    return currentPeriod.map((item, index) => {
-      const prevItem = previousPeriod[index];
+    return currentData.map((item) => {
+      const prevItem = previousData.find((p) => p.month === item.month);
       return {
-        name: item.label,
+        name: MONTHS[item.month - 1],
         Handelsware: Number(item.revenue_retail.toFixed(2)),
         Service: Number(item.revenue_service.toFixed(2)),
         Sonderwerkzeug: Number(item.revenue_custom.toFixed(2)),
         Gesamt: Number(item.revenue_total.toFixed(2)),
-        "Vorherige 12M": prevItem ? Number(prevItem.revenue_total.toFixed(2)) : 0,
+        "Vorjahr Gesamt": prevItem ? Number(prevItem.revenue_total.toFixed(2)) : 0,
       };
     });
-  }, [currentPeriod, previousPeriod]);
+  }, [currentData, previousData]);
 
   const yearChartData = useMemo(() => {
     return yearlyData.map((item) => ({
@@ -228,7 +264,7 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
     }));
   }, [yearlyData]);
 
-  const hasMonthData = currentPeriod.some(
+  const hasMonthData = currentData.some(
     (d) => d.revenue_retail > 0 || d.revenue_service > 0 || d.revenue_custom > 0
   );
 
@@ -260,12 +296,12 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
 
   return (
     <div className="space-y-6">
-      {/* KPI-Karten — immer sichtbar in Monatsansicht */}
+      {/* KPI-Karten — immer sichtbar, auch in Jahresansicht */}
       {viewMode === "month" && (
         <RevenueSummary
-          data={currentPeriod}
-          previousYearData={hasPreviousPeriod ? previousPeriod : undefined}
-          periodLabel={periodLabel}
+          data={currentData}
+          previousYearData={hasPreviousYear ? previousData : undefined}
+          selectedPeriod={selectedPeriod}
         />
       )}
 
@@ -276,18 +312,31 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
         transition={{ duration: 0.3 }}
         className="rounded-lg border bg-card p-6 shadow-sm space-y-6"
       >
-        {/* Header mit Periode-Info und Toggle */}
+        {/* Header mit Jahr-Select und Toggle */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h3 className="font-semibold text-lg">
-              {viewMode === "month" ? "Letzte 12 Monate" : "Jahresumsätze"}
-            </h3>
-            {viewMode === "month" && currentPeriod.length > 0 && (
-              <p className="text-sm text-muted-foreground">{periodLabel}</p>
-            )}
-          </div>
-          
+          <h3 className="font-semibold text-lg">
+            {viewMode === "month" ? "Monatsumsätze" : "Jahresumsätze"}
+          </h3>
           <div className="flex items-center gap-3">
+            {viewMode === "month" && (
+              <Select
+                value={selectedPeriod}
+                onValueChange={(v) => setSelectedPeriod(v)}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Zeitraum wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ytd">YTD {currentYear}</SelectItem>
+                  {years.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            
             {/* Toggle Monat/Jahr */}
             <div className="flex rounded-lg border bg-muted p-1">
               <Button
@@ -296,7 +345,7 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
                 onClick={() => setViewMode("month")}
                 className="text-xs"
               >
-                12 Monate
+                Monat
               </Button>
               <Button
                 variant={viewMode === "year" ? "secondary" : "ghost"}
@@ -310,7 +359,7 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
           </div>
         </div>
 
-        {/* Monatsansicht: Rolling 12 Months */}
+        {/* Monatsansicht */}
         {viewMode === "month" && (
           <>
             {hasMonthData ? (
@@ -320,9 +369,17 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
                   margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                 >
                   <defs>
-                    <linearGradient id="colorPrev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#9ca3af" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#9ca3af" stopOpacity={0}/>
+                    <linearGradient id="colorHandel" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorService" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorCustom" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -349,38 +406,31 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
                   <Area
                     type="monotone"
                     dataKey="Handelsware"
-                    stackId="1"
                     stroke="#10b981"
-                    fill="#10b981"
-                    fillOpacity={0.85}
-                    strokeWidth={1.5}
+                    fill="url(#colorHandel)"
+                    strokeWidth={2}
                   />
                   <Area
                     type="monotone"
                     dataKey="Service"
-                    stackId="1"
                     stroke="#f59e0b"
-                    fill="#f59e0b"
-                    fillOpacity={0.85}
-                    strokeWidth={1.5}
+                    fill="url(#colorService)"
+                    strokeWidth={2}
                   />
                   <Area
                     type="monotone"
                     dataKey="Sonderwerkzeug"
-                    stackId="1"
                     stroke="#8b5cf6"
-                    fill="#8b5cf6"
-                    fillOpacity={0.85}
-                    strokeWidth={1.5}
+                    fill="url(#colorCustom)"
+                    strokeWidth={2}
                   />
-                  {hasPreviousPeriod && (
+                  {hasPreviousYear && (
                     <Area
                       type="monotone"
-                      dataKey="Vorherige 12M"
+                      dataKey="Vorjahr Gesamt"
                       stroke="#9ca3af"
                       strokeDasharray="5 5"
-                      fill="url(#colorPrev)"
-                      fillOpacity={0.3}
+                      fill="transparent"
                       strokeWidth={2}
                     />
                   )}
@@ -388,7 +438,7 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
               </ResponsiveContainer>
             ) : (
               <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                Keine Umsatzdaten in den letzten 12 Monaten verfügbar
+                Keine Umsatzdaten für {selectedPeriod === "ytd" ? `YTD ${currentYear}` : selectedPeriod} verfügbar
               </div>
             )}
           </>
@@ -403,6 +453,12 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
                   data={yearChartData}
                   margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                 >
+                  <defs>
+                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} />
                   <YAxis
@@ -426,30 +482,10 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
                   <Legend wrapperStyle={{ paddingTop: "1rem" }} />
                   <Area
                     type="monotone"
-                    dataKey="Handelsware"
-                    stackId="1"
-                    stroke="#10b981"
-                    fill="#10b981"
-                    fillOpacity={0.85}
-                    strokeWidth={1.5}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="Service"
-                    stackId="1"
-                    stroke="#f59e0b"
-                    fill="#f59e0b"
-                    fillOpacity={0.85}
-                    strokeWidth={1.5}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="Sonderwerkzeug"
-                    stackId="1"
-                    stroke="#8b5cf6"
-                    fill="#8b5cf6"
-                    fillOpacity={0.85}
-                    strokeWidth={1.5}
+                    dataKey="Gesamtumsatz"
+                    stroke="#3b82f6"
+                    fill="url(#colorTotal)"
+                    strokeWidth={2}
                   />
                 </AreaChart>
               </ResponsiveContainer>
