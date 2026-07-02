@@ -60,13 +60,18 @@ export async function updateSession(request: NextRequest) {
   // Angemeldet: Profil prüfen (RLS erlaubt das eigene Profil).
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, status, must_change_password")
+    .select("roles, status, must_change_password")
     .eq("id", user.id)
-    .single<{ role: UserRole; status: UserStatus; must_change_password: boolean }>();
+    .single<{ roles: UserRole[]; status: UserStatus; must_change_password: boolean }>();
 
   if (!profile || profile.status === "deaktiviert") {
-    await supabase.auth.signOut();
-    return redirectTo("/login", { error: "disabled" });
+    // Session-Cookies löschen, damit alte/ungültige Sessions nicht
+    // eine Endlosschleife erzeugen.
+    const redirect = redirectTo("/login", { error: "disabled" });
+    redirect.cookies.set("sb-access-token", "", { maxAge: 0, path: "/" });
+    redirect.cookies.set("sb-refresh-token", "", { maxAge: 0, path: "/" });
+    redirect.cookies.set("sb-auth-token", "", { maxAge: 0, path: "/" });
+    return redirect;
   }
 
   if (profile.must_change_password && pathname !== PASSWORD_PATH) {
@@ -77,7 +82,7 @@ export async function updateSession(request: NextRequest) {
     return redirectTo("/dashboard");
   }
 
-  if (pathname.startsWith("/verwaltung") && profile.role !== "admin") {
+  if (pathname.startsWith("/verwaltung") && !profile.roles?.includes("admin")) {
     return redirectTo("/dashboard");
   }
 

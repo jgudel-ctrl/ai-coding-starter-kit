@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { LoginForm } from "@/components/auth/login-form";
+import { AuthErrorCleanup } from "@/components/auth/auth-error-cleanup";
 
 export const metadata: Metadata = {
   title: "Anmelden — TMS 2.0",
@@ -17,6 +18,7 @@ export default async function LoginPage({
   const { error } = await searchParams;
   return (
     <main className="flex min-h-svh items-center justify-center bg-background p-4">
+      <AuthErrorCleanup />
       <Card className="w-full max-w-md overflow-hidden border-border shadow-md">
         {/* Korallen-Markenfläche mit weißem Logo (design-system.md §6) */}
         <div className="flex flex-col items-center gap-3 bg-primary px-6 py-10 text-primary-foreground">

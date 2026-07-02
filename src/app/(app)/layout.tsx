@@ -13,7 +13,7 @@ export default async function AppLayout({
   const user: CurrentUser = {
     fullName: profile.full_name || profile.email,
     email: profile.email,
-    role: profile.role,
+    roles: profile.roles,
   };
 
   return (

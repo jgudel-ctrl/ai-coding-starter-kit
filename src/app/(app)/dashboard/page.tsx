@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Users, Wrench } from "lucide-react";
+import { Users, Wrench, Building2 } from "lucide-react";
 import type { Metadata } from "next";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { roleLabel } from "@/lib/roles";
+import { rolesLabel, isAdmin } from "@/lib/roles";
 import { getCurrentProfile } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -24,12 +24,12 @@ export default async function DashboardPage() {
           Willkommen, {firstName}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Angemeldet als {roleLabel(profile.role)}
+          Angemeldet als {rolesLabel(profile.roles)}
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {profile.role === "admin" && (
+        {isAdmin(profile.roles) && (
           <Link href="/verwaltung/nutzer" className="group">
             <Card className="h-full transition-shadow hover:shadow-md">
               <CardHeader className="flex flex-row items-center gap-3 space-y-0">
@@ -44,6 +44,20 @@ export default async function DashboardPage() {
             </Card>
           </Link>
         )}
+
+        <Link href="/kunden" className="group">
+          <Card className="h-full transition-shadow hover:shadow-md">
+            <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Building2 className="h-5 w-5" />
+              </span>
+              <CardTitle className="text-base">Kunden</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Kunden-Stammdaten verwalten, Ansprechpartner und Adressen pflegen.
+            </CardContent>
+          </Card>
+        </Link>
 
         <Card className="h-full border-dashed">
           <CardHeader className="flex flex-row items-center gap-3 space-y-0">

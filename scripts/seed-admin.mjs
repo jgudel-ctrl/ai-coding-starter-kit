@@ -34,7 +34,7 @@ let user = list?.users?.find(
 );
 
 const password = randomBytes(12).toString("base64url");
-const meta = { full_name: FULL_NAME, role: "admin", must_change_password: true };
+const meta = { full_name: FULL_NAME, roles: ["admin"], must_change_password: true };
 
 if (user) {
   const { error } = await admin.auth.admin.updateUserById(user.id, {
@@ -68,7 +68,7 @@ const { error: profErr } = await admin.from("profiles").upsert(
     id: user.id,
     email: user.email,
     full_name: FULL_NAME,
-    role: "admin",
+    roles: ["admin"],
     status: "aktiv",
     must_change_password: true,
   },

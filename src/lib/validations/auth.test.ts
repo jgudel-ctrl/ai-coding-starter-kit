@@ -33,12 +33,25 @@ describe("changePasswordSchema", () => {
 });
 
 describe("createUserSchema", () => {
-  const base = { email: "neu@b.de", fullName: "Max Muster", role: "werker", password: "start123" };
-  it("akzeptiert gültige Nutzerdaten", () => {
+  const base = {
+    email: "neu@b.de",
+    fullName: "Max Muster",
+    roles: ["werker"],
+    password: "start123",
+  };
+  it("akzeptiert gültige Nutzerdaten (eine Rolle)", () => {
     expect(createUserSchema.safeParse(base).success).toBe(true);
   });
+  it("akzeptiert mehrere Rollen", () => {
+    expect(
+      createUserSchema.safeParse({ ...base, roles: ["fahrer", "wareneingang"] }).success,
+    ).toBe(true);
+  });
+  it("lehnt leere Rollenliste ab", () => {
+    expect(createUserSchema.safeParse({ ...base, roles: [] }).success).toBe(false);
+  });
   it("lehnt unbekannte Rolle ab", () => {
-    expect(createUserSchema.safeParse({ ...base, role: "chef" }).success).toBe(false);
+    expect(createUserSchema.safeParse({ ...base, roles: ["chef"] }).success).toBe(false);
   });
   it("lehnt zu kurzen Namen ab", () => {
     expect(createUserSchema.safeParse({ ...base, fullName: "M" }).success).toBe(false);

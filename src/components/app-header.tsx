@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, KeyRound, LogOut } from "lucide-react";
 
-import { type UserRole, roleLabel } from "@/lib/roles";
+import { type UserRole, rolesLabel } from "@/lib/roles";
 import { signOutAction } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,7 @@ import {
 export interface CurrentUser {
   fullName: string;
   email: string;
-  role: UserRole;
+  roles: UserRole[];
 }
 
 function initials(name: string): string {
@@ -65,7 +65,7 @@ export function AppHeader({ user }: { user: CurrentUser }) {
                   {user.fullName}
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  {roleLabel(user.role)}
+                  {rolesLabel(user.roles)}
                 </span>
               </span>
               <ChevronDown className="h-4 w-4 text-muted-foreground" />

@@ -31,10 +31,10 @@ check("Login als Admin erfolgreich", !signInErr && !!signIn.session);
 
 const { data: profile } = await supabase
   .from("profiles")
-  .select("role, status")
+  .select("roles, status")
   .eq("id", signIn.user?.id)
   .single();
-check("Eigenes Profil hat Rolle admin", profile?.role === "admin");
+check("Eigenes Profil hat Rolle admin", profile?.roles?.includes("admin"));
 check("Eigenes Konto ist aktiv", profile?.status === "aktiv");
 
 // Admin sieht per RLS ALLE Profile.

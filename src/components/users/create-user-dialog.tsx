@@ -10,6 +10,7 @@ import { createUserSchema, type CreateUserInput, PASSWORD_MIN } from "@/lib/vali
 import { USER_ROLES, ROLE_LABELS } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -28,13 +29,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 export function CreateUserDialog({
   onCreate,
@@ -45,7 +39,7 @@ export function CreateUserDialog({
   const [loading, setLoading] = useState(false);
   const form = useForm<CreateUserInput>({
     resolver: zodResolver(createUserSchema),
-    defaultValues: { email: "", fullName: "", role: "werker", password: "" },
+    defaultValues: { email: "", fullName: "", roles: ["werker"], password: "" },
   });
 
   async function onSubmit(values: CreateUserInput) {
@@ -108,28 +102,35 @@ export function CreateUserDialog({
             />
             <FormField
               control={form.control}
-              name="role"
+              name="roles"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Rolle</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={loading}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Rolle wählen" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {USER_ROLES.map((role) => (
-                        <SelectItem key={role} value={role}>
+                  <FormLabel>Rollen</FormLabel>
+                  <FormDescription>Mehrfachauswahl möglich.</FormDescription>
+                  <div className="grid grid-cols-2 gap-2">
+                    {USER_ROLES.map((role) => {
+                      const checked = field.value?.includes(role);
+                      return (
+                        <label
+                          key={role}
+                          className="flex items-center gap-2 rounded-lg border border-border p-2 text-sm"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            disabled={loading}
+                            onCheckedChange={(c) =>
+                              field.onChange(
+                                c
+                                  ? [...(field.value ?? []), role]
+                                  : (field.value ?? []).filter((r) => r !== role),
+                              )
+                            }
+                          />
                           {ROLE_LABELS[role]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        </label>
+                      );
+                    })}
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

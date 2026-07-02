@@ -34,7 +34,7 @@ export interface Profile {
   id: string;
   email: string;
   full_name: string;
-  role: UserRole;
+  roles: UserRole[];
   status: UserStatus;
   must_change_password: boolean;
 }
@@ -49,7 +49,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, status, must_change_password")
+    .select("id, email, full_name, roles, status, must_change_password")
     .eq("id", user.id)
     .single();
 

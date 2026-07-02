@@ -39,7 +39,7 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export const createUserSchema = z.object({
   email: z.string().min(1, "E-Mail erforderlich").email("Ungültige E-Mail"),
   fullName: z.string().min(2, "Name erforderlich"),
-  role: z.enum(USER_ROLES, { message: "Rolle wählen" }),
+  roles: z.array(z.enum(USER_ROLES)).min(1, "Mindestens eine Rolle wählen"),
   password: passwordField,
 });
 export type CreateUserInput = z.infer<typeof createUserSchema>;

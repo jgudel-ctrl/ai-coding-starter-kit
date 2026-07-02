@@ -2,13 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound } from "lucide-react";
+import { ChevronDown, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
-import { USER_ROLES, ROLE_LABELS, type UserRole, type UserStatus } from "@/lib/roles";
+import {
+  USER_ROLES,
+  ROLE_LABELS,
+  type UserRole,
+  type UserStatus,
+} from "@/lib/roles";
 import {
   createUserAction,
-  updateRoleAction,
+  updateRolesAction,
   toggleStatusAction,
   resetPasswordAction,
 } from "@/lib/actions/users";
@@ -26,12 +31,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -45,9 +49,61 @@ export interface ManagedUser {
   id: string;
   fullName: string;
   email: string;
-  role: UserRole;
+  roles: UserRole[];
   status: UserStatus;
   mustChangePassword: boolean;
+}
+
+function RolesEditor({
+  roles,
+  disabled,
+  onChange,
+}: {
+  roles: UserRole[];
+  disabled: boolean;
+  onChange: (roles: UserRole[]) => void;
+}) {
+  function toggle(role: UserRole, checked: boolean) {
+    if (!checked && roles.length === 1 && roles[0] === role) {
+      toast.error("Mindestens eine Rolle muss bleiben.");
+      return;
+    }
+    const next = checked ? [...roles, role] : roles.filter((r) => r !== role);
+    onChange(next);
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          disabled={disabled}
+          className="h-auto min-h-10 w-full justify-between gap-2 py-1.5"
+        >
+          <span className="flex flex-wrap gap-1">
+            {roles.map((r) => (
+              <Badge key={r} variant="secondary" className="font-normal">
+                {ROLE_LABELS[r]}
+              </Badge>
+            ))}
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        {USER_ROLES.map((role) => (
+          <DropdownMenuCheckboxItem
+            key={role}
+            checked={roles.includes(role)}
+            onCheckedChange={(checked) => toggle(role, checked)}
+            onSelect={(e) => e.preventDefault()}
+          >
+            {ROLE_LABELS[role]}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export function UserManagement({
@@ -70,9 +126,9 @@ export function UserManagement({
     return res;
   }
 
-  function handleRoleChange(userId: string, role: UserRole) {
+  function handleRolesChange(userId: string, roles: UserRole[]) {
     startTransition(async () => {
-      const res = await updateRoleAction(userId, role);
+      const res = await updateRolesAction(userId, roles);
       if (!res.ok) toast.error(res.error);
       else router.refresh();
     });
@@ -115,7 +171,7 @@ export function UserManagement({
           <TableHeader>
             <TableRow>
               <TableHead>Mitarbeiter</TableHead>
-              <TableHead className="w-56">Rolle</TableHead>
+              <TableHead className="w-64">Rollen</TableHead>
               <TableHead className="w-40">Status</TableHead>
               <TableHead className="w-12 text-right">Aktion</TableHead>
             </TableRow>
@@ -148,22 +204,11 @@ export function UserManagement({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Select
-                      value={user.role}
+                    <RolesEditor
+                      roles={user.roles}
                       disabled={pending}
-                      onValueChange={(v) => handleRoleChange(user.id, v as UserRole)}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {USER_ROLES.map((role) => (
-                          <SelectItem key={role} value={role}>
-                            {ROLE_LABELS[role]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(roles) => handleRolesChange(user.id, roles)}
+                    />
                   </TableCell>
                   <TableCell>
                     <label className="flex items-center gap-2">

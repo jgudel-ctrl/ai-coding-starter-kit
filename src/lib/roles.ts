@@ -1,5 +1,5 @@
 // Rollenmodell TMS 2.0 — siehe features/PROJ-1-auth-rollen.md
-// Eine Rolle pro Nutzer (MVP). Werte werden 1:1 in profiles.role gespeichert.
+// Mehrere Rollen pro Nutzer möglich. Werte werden in profiles.roles (Array) gespeichert.
 
 export const USER_ROLES = [
   "admin",
@@ -37,6 +37,16 @@ export const ROLE_HOME: Record<UserRole, string> = {
 
 export function roleLabel(role: UserRole): string {
   return ROLE_LABELS[role] ?? role;
+}
+
+/** Mehrere Rollen als lesbare Liste, z.B. "Fahrer, Wareneingang". */
+export function rolesLabel(roles: UserRole[]): string {
+  return roles.map(roleLabel).join(", ");
+}
+
+/** Hat der Nutzer (mindestens) die Admin-Rolle? */
+export function isAdmin(roles: UserRole[] | null | undefined): boolean {
+  return !!roles?.includes("admin");
 }
 
 /** Kontostatus eines Nutzers. */
