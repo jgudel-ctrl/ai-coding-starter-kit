@@ -70,16 +70,15 @@ export function OrderDefaultsCard({
           </div>
         )}
 
-        {/* Abholzyklus */}
-        {orderDefault?.pickup_cycle_count && (
-          <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground shrink-0">Abholzyklus</span>
-            <span className="text-right">
-              Alle {orderDefault.pickup_cycle_count} Woche
-              {orderDefault.pickup_cycle_count > 1 ? "n" : ""}
-            </span>
-          </div>
-        )}
+        {/* Abholzyklus — immer anzeigen */}
+        <div className="flex justify-between gap-4">
+          <span className="text-muted-foreground shrink-0">Abholzyklus</span>
+          <span className="text-right">
+            {orderDefault?.pickup_cycle_count
+              ? `Alle ${orderDefault.pickup_cycle_count} Woche${orderDefault.pickup_cycle_count > 1 ? "n" : ""}`
+              : "—"}
+          </span>
+        </div>
 
         {/* Abholstatus */}
         <div className="flex justify-between gap-4">

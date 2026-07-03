@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { OrderDefaultsForm } from "./order-defaults-form";
 import type { OrderDefault, DriverOption } from "@/lib/actions/order-defaults";
 
@@ -25,16 +22,8 @@ export function OrderDefaultsModal({
   drivers,
   onClose,
 }: OrderDefaultsModalProps) {
-  const [open, setOpen] = useState(true);
-
-  const handleClose = () => {
-    setOpen(false);
-    // Kurze Verzögerung für Exit-Animation
-    setTimeout(onClose, 150);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Auftrags-Default bearbeiten</DialogTitle>
@@ -44,7 +33,7 @@ export function OrderDefaultsModal({
           partnerId={partnerId}
           orderDefault={orderDefault}
           drivers={drivers}
-          onSuccess={handleClose}
+          onSuccess={onClose}
         />
       </DialogContent>
     </Dialog>
