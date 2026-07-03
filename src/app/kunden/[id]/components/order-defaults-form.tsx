@@ -1,16 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   upsertPartnerOrderDefault,
@@ -51,7 +42,7 @@ export function OrderDefaultsForm({
     outboundType === "Bringen";
 
   // Validierung
-  const validate = useCallback(() => {
+  const validate = () => {
     const newErrors: Record<string, string> = {};
 
     if (!inboundType) newErrors.inbound_type = "Zugang ist erforderlich";
@@ -73,7 +64,7 @@ export function OrderDefaultsForm({
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [inboundType, outboundType, pickupStatus, needsDriver, driverId, cycleCount]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,63 +73,71 @@ export function OrderDefaultsForm({
 
     setLoading(true);
 
-    const result = await upsertPartnerOrderDefault(partnerId, {
-      inbound_type: inboundType,
-      outbound_type: outboundType,
-      pickup_delivery_status: pickupStatus,
-      driver_id: driverId || null,
-      pickup_cycle_count: cycleCount ? parseInt(cycleCount, 10) : null,
-    });
+    try {
+      const result = await upsertPartnerOrderDefault(partnerId, {
+        inbound_type: inboundType,
+        outbound_type: outboundType,
+        pickup_delivery_status: pickupStatus,
+        driver_id: driverId || null,
+        pickup_cycle_count: cycleCount ? parseInt(cycleCount, 10) : null,
+      });
 
-    setLoading(false);
+      setLoading(false);
 
-    if (result.ok) {
-      toast.success("Auftrags-Default gespeichert");
-      onSuccess();
-    } else {
-      toast.error(result.error);
+      if (result.ok) {
+        toast.success("Auftrags-Default gespeichert");
+        onSuccess();
+      } else {
+        toast.error(result.error);
+      }
+    } catch (err) {
+      setLoading(false);
+      toast.error("Ein unerwarteter Fehler ist aufgetreten");
+      console.error(err);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Zugang */}
-      <div className="space-y-1.5">
-        <Label htmlFor="inbound_type">Zugang *</Label>
-        <Select
+      <div className="space-y-1">
+        <label htmlFor="inbound_type" className="text-sm font-medium">
+          Zugang *</label>
+        <select
+          id="inbound_type"
           value={inboundType}
-          onValueChange={setInboundType}
+          onChange={(e) => setInboundType(e.target.value)}
+          className={`w-full rounded-md border px-3 py-2 text-sm ${
+            errors.inbound_type ? "border-red-500" : "border-input"
+          } bg-background`}
         >
-          <SelectTrigger id="inbound_type" className={errors.inbound_type ? "border-red-500" : ""}>
-            <SelectValue placeholder="Zugang wählen" />
-          </SelectTrigger>
-          <SelectContent>
-            {INBOUND_OPTIONS.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <option value="">Zugang wählen</option>
+          {INBOUND_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
         {errors.inbound_type && (
           <p className="text-xs text-red-500">{errors.inbound_type}</p>
         )}
       </div>
 
       {/* Rücksendung */}
-      <div className="space-y-1.5">
-        <Label htmlFor="outbound_type">Rücksendung *</Label>
-        <Select
+      <div className="space-y-1">
+        <label htmlFor="outbound_type" className="text-sm font-medium">
+          Rücksendung *</label>
+        <select
+          id="outbound_type"
           value={outboundType}
-          onValueChange={setOutboundType}
+          onChange={(e) => setOutboundType(e.target.value)}
+          className={`w-full rounded-md border px-3 py-2 text-sm ${
+            errors.outbound_type ? "border-red-500" : "border-input"
+          } bg-background`}
         >
-          <SelectTrigger id="outbound_type" className={errors.outbound_type ? "border-red-500" : ""}>
-            <SelectValue placeholder="Rücksendung wählen" />
-          </SelectTrigger>
-          <SelectContent>
-            {OUTBOUND_OPTIONS.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <option value="">Rücksendung wählen</option>
+          {OUTBOUND_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
         {errors.outbound_type && (
           <p className="text-xs text-red-500">{errors.outbound_type}</p>
         )}
@@ -146,29 +145,25 @@ export function OrderDefaultsForm({
 
       {/* Fahrer — bedingt sichtbar */}
       {(needsDriver || driverId) && (
-        <div className="space-y-1.5">
-          <Label htmlFor="driver_id">
+        <div className="space-y-1">
+          <label htmlFor="driver_id" className="text-sm font-medium">
             Fahrer {needsDriver && "*"}
-          </Label>
-          <Select
+          </label>
+          <select
+            id="driver_id"
             value={driverId}
-            onValueChange={setDriverId}
+            onChange={(e) => setDriverId(e.target.value)}
+            className={`w-full rounded-md border px-3 py-2 text-sm ${
+              errors.driver_id ? "border-red-500" : "border-input"
+            } bg-background`}
           >
-            <SelectTrigger
-              id="driver_id"
-              className={errors.driver_id ? "border-red-500" : ""}
-            >
-              <SelectValue placeholder="Fahrer wählen" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">— Kein Fahrer —</SelectItem>
-              {drivers.map((driver) => (
-                <SelectItem key={driver.id} value={driver.id}>
-                  {driver.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="">— Kein Fahrer —</option>
+            {drivers.map((driver) => (
+              <option key={driver.id} value={driver.id}>
+                {driver.full_name}
+              </option>
+            ))}
+          </select>
           {errors.driver_id && (
             <p className="text-xs text-red-500">{errors.driver_id}</p>
           )}
@@ -176,9 +171,10 @@ export function OrderDefaultsForm({
       )}
 
       {/* Abholzyklus */}
-      <div className="space-y-1.5">
-        <Label htmlFor="pickup_cycle_count">Abholzyklus (Wochen)</Label>
-        <Input
+      <div className="space-y-1">
+        <label htmlFor="pickup_cycle_count" className="text-sm font-medium">
+          Abholzyklus (Wochen)</label>
+        <input
           id="pickup_cycle_count"
           type="number"
           min={1}
@@ -186,7 +182,9 @@ export function OrderDefaultsForm({
           placeholder="z.B. 1 = jede Woche"
           value={cycleCount}
           onChange={(e) => setCycleCount(e.target.value)}
-          className={errors.pickup_cycle_count ? "border-red-500" : ""}
+          className={`w-full rounded-md border px-3 py-2 text-sm ${
+            errors.pickup_cycle_count ? "border-red-500" : "border-input"
+          } bg-background`}
         />
         {errors.pickup_cycle_count && (
           <p className="text-xs text-red-500">{errors.pickup_cycle_count}</p>
@@ -194,31 +192,29 @@ export function OrderDefaultsForm({
       </div>
 
       {/* Abholstatus */}
-      <div className="space-y-1.5">
-        <Label htmlFor="pickup_delivery_status">Abholstatus *</Label>
-        <Select
+      <div className="space-y-1">
+        <label htmlFor="pickup_delivery_status" className="text-sm font-medium">
+          Abholstatus *</label>
+        <select
+          id="pickup_delivery_status"
           value={pickupStatus}
-          onValueChange={setPickupStatus}
+          onChange={(e) => setPickupStatus(e.target.value)}
+          className={`w-full rounded-md border px-3 py-2 text-sm ${
+            errors.pickup_delivery_status ? "border-red-500" : "border-input"
+          } bg-background`}
         >
-          <SelectTrigger
-            id="pickup_delivery_status"
-            className={errors.pickup_delivery_status ? "border-red-500" : ""}
-          >
-            <SelectValue placeholder="Abholstatus wählen" />
-          </SelectTrigger>
-          <SelectContent>
-            {PICKUP_STATUS_OPTIONS.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <option value="">Abholstatus wählen</option>
+          {PICKUP_STATUS_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
         {errors.pickup_delivery_status && (
           <p className="text-xs text-red-500">{errors.pickup_delivery_status}</p>
         )}
       </div>
 
       {/* Footer */}
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={onSuccess}>
           Abbrechen
         </Button>
