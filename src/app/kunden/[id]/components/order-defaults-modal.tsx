@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderDefaultsForm } from "./order-defaults-form";
@@ -19,7 +20,16 @@ export function OrderDefaultsModal({
   drivers,
   onClose,
 }: OrderDefaultsModalProps) {
-  return (
+  // Nur auf Client rendern (Portal braucht document)
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="relative w-full max-w-md rounded-lg border bg-card p-6 shadow-lg">
         {/* Header */}
@@ -44,6 +54,7 @@ export function OrderDefaultsModal({
           onSuccess={onClose}
         />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
