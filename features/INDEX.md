@@ -19,6 +19,7 @@
 | PROJ-1  | Auth & Rollen (Invite-only, 7 Rollen, RLS) | Deployed | [PROJ-1](PROJ-1-auth-rollen.md) | 2026-06-29 |
 | PROJ-2a.1  | Kunden-Stammdaten (Read-Only, tms.partners) | **Deployed** | [PROJ-2a.1](PROJ-2a.1-kunden-stammdaten.md) | 2026-07-02 |
 | PROJ-11 | Kundendetailseite (erweitert) | **Deployed** ✅ | [PROJ-11](PROJ-11-kundendetailseite.md) | 2026-07-02 |
+| PROJ-17 | Auftrags-Default im Kunden-Detail | **Deployed** ✅ | [PROJ-17](PROJ-17-auftrags-default.md) | 2026-07-03 |
 | PROJ-2  | Werkzeug-Stammdaten (CRUD + Suche) | Roadmap | — | 2026-06-29 |
 | PROJ-3  | Stations-Workflow & Status-Tracking (Kern) | Roadmap | — | 2026-06-29 |
 | PROJ-4  | Stations-Arbeitslisten | Roadmap | — | 2026-06-29 |
@@ -31,4 +32,4 @@
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-12
+## Next Available ID: PROJ-18

@@ -2,11 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getPartnerById } from "@/lib/actions/partners";
+import { getPartnerOrderDefault, getDrivers } from "@/lib/actions/order-defaults";
+import { getCurrentProfile } from "@/lib/supabase/server";
 import { TabContainer } from "./components/tab-container";
 import { AddressCard } from "./components/address-card";
 import { ContactsList } from "./components/contacts-list";
 import { RevenueChart } from "./components/revenue-chart";
 import { OrderHistoryTable } from "./components/order-history-table";
+import { OrderDefaultsCard } from "./components/order-defaults-card";
 
 export default async function KundeDetailPage({
   params,
@@ -14,13 +17,28 @@ export default async function KundeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const result = await getPartnerById(id);
 
-  if (!result.ok) {
+  // Parallel laden
+  const [
+    partnerResult,
+    orderDefaultResult,
+    driversResult,
+    currentProfile,
+  ] = await Promise.all([
+    getPartnerById(id),
+    getPartnerOrderDefault(id),
+    getDrivers(),
+    getCurrentProfile(),
+  ]);
+
+  if (!partnerResult.ok) {
     notFound();
   }
 
-  const { partner, addresses, contacts } = result;
+  const { partner, addresses, contacts } = partnerResult;
+  const orderDefault = orderDefaultResult.ok ? orderDefaultResult.data : null;
+  const drivers = driversResult.ok ? driversResult.data : [];
+  const isAdmin = currentProfile?.roles?.includes("admin") ?? false;
 
   // Rechnungsadresse finden
   const rechnungsAdresse = addresses.find(
@@ -79,6 +97,14 @@ export default async function KundeDetailPage({
             <RevenueTab partnerId={id} />
           ),
           orders: <OrderHistoryTab partnerId={id} />,
+          defaults: (
+            <OrderDefaultsTab
+              orderDefault={orderDefault}
+              drivers={drivers}
+              isAdmin={isAdmin}
+              partnerId={id}
+            />
+          ),
         }}
       />
     </div>
@@ -205,4 +231,29 @@ function RevenueTab({ partnerId }: { partnerId: string }) {
 
 function OrderHistoryTab({ partnerId }: { partnerId: string }) {
   return <OrderHistoryTable partnerId={partnerId} />;
+}
+
+/* ────────────────────── AUFTRAGS-DEFAULT TAB ────────────────────── */
+
+function OrderDefaultsTab({
+  orderDefault,
+  drivers,
+  isAdmin,
+  partnerId,
+}: {
+  orderDefault: any;
+  drivers: any[];
+  isAdmin: boolean;
+  partnerId: string;
+}) {
+  return (
+    <div className="max-w-2xl">
+      <OrderDefaultsCard
+        orderDefault={orderDefault}
+        drivers={drivers}
+        isAdmin={isAdmin}
+        partnerId={partnerId}
+      />
+    </div>
+  );
 }

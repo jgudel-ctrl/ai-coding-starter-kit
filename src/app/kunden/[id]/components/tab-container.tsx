@@ -10,6 +10,7 @@ interface TabContainerProps {
     overview: React.ReactNode;
     revenue: React.ReactNode;
     orders: React.ReactNode;
+    defaults: React.ReactNode;
   };
 }
 
@@ -24,7 +25,7 @@ export function TabContainer({ defaultTab = "overview", children }: TabContainer
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="mb-6 grid w-full grid-cols-3 md:w-auto">
+      <TabsList className="mb-6 grid w-full grid-cols-4 md:w-auto">
         <TabsTrigger value="overview" className="text-sm">
           Übersicht
         </TabsTrigger>
@@ -33,6 +34,9 @@ export function TabContainer({ defaultTab = "overview", children }: TabContainer
         </TabsTrigger>
         <TabsTrigger value="orders" className="text-sm">
           Bestellhistorie
+        </TabsTrigger>
+        <TabsTrigger value="defaults" className="text-sm">
+          Auftrags-Default
         </TabsTrigger>
       </TabsList>
 
@@ -73,6 +77,19 @@ export function TabContainer({ defaultTab = "overview", children }: TabContainer
           >
             <TabsContent value="orders" className="mt-0">
               {children.orders}
+            </TabsContent>
+          </motion.div>
+        )}
+        {activeTab === "defaults" && (
+          <motion.div
+            key="defaults"
+            variants={tabVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <TabsContent value="defaults" className="mt-0">
+              {children.defaults}
             </TabsContent>
           </motion.div>
         )}
