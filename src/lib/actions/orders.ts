@@ -1,17 +1,17 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface TradeOrderItem {
   document_date: string;
   document_number: string;
-  title: string;
-  item_number: string | null;
+  description: string;
+  article_number: string | null;
   quantity: number;
-  unit_price: number;
-  discount: number | null;
-  total_price: number;
-  cost_price: number | null;
+  unit_price_net: number;
+  discount_percent: number | null;
+  total_net: number;
+  purchase_price: number | null;
 }
 
 export async function getPartnerTradeOrders(
@@ -21,38 +21,31 @@ export async function getPartnerTradeOrders(
   search?: string
 ) {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient({ schema: "tms" });
 
-    // Zuerst die Gesamtanzahl ermitteln
-    let countQuery = supabase
-      .from("invoice_items")
-      .select("id", { count: "exact", head: true })
-      .eq("revenue_category", "trade")
-      .not("title", "is", null);
-
-    // Dann die Daten abrufen (mit Join über invoice_id)
     let query = supabase
       .from("invoice_items")
       .select(
         `
-        title,
-        item_number,
+        description,
+        article_number,
         quantity,
-        unit_price,
-        discount,
-        total_price,
-        cost_price,
+        unit_price_net,
+        discount_percent,
+        total_net,
+        purchase_price,
         invoices!inner(document_date, document_number, partner_id)
-      `
+      `,
+        { count: "exact" }
       )
       .eq("invoices.partner_id", partnerId)
-      .eq("revenue_category", "trade")
-      .not("title", "is", null)
+      .eq("revenue_category", "trade_goods")
+      .not("description", "is", null)
       .order("invoices(document_date)", { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (search) {
-      query = query.or(`title.ilike.%${search}%,item_number.ilike.%${search}%`);
+      query = query.or(`description.ilike.%${search}%,article_number.ilike.%${search}%`);
     }
 
     const { data, error, count } = await query;
@@ -72,13 +65,13 @@ export async function getPartnerTradeOrders(
       data?.map((item: any) => ({
         document_date: item.invoices?.document_date || "",
         document_number: item.invoices?.document_number || "",
-        title: item.title || "",
-        item_number: item.item_number,
+        description: item.description || "",
+        article_number: item.article_number,
         quantity: Number(item.quantity) || 0,
-        unit_price: Number(item.unit_price) || 0,
-        discount: item.discount ? Number(item.discount) : null,
-        total_price: Number(item.total_price) || 0,
-        cost_price: item.cost_price ? Number(item.cost_price) : null,
+        unit_price_net: Number(item.unit_price_net) || 0,
+        discount_percent: item.discount_percent ? Number(item.discount_percent) : null,
+        total_net: Number(item.total_net) || 0,
+        purchase_price: item.purchase_price ? Number(item.purchase_price) : null,
       })) || [];
 
     return {

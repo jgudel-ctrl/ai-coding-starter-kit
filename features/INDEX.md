@@ -15,6 +15,7 @@
 
 | ID | Feature | Status | Spec | Created |
 |----|---------|--------|------|---------|
+| BUG-2 | Bestellhistorie zeigt keine Daten (RLS-Fix) | **Deployed** ✅ | [BUG-2](BUG-2-bestellhistorie-keine-daten.md) | 2026-07-02 |
 | PROJ-1  | Auth & Rollen (Invite-only, 7 Rollen, RLS) | Deployed | [PROJ-1](PROJ-1-auth-rollen.md) | 2026-06-29 |
 | PROJ-2a.1  | Kunden-Stammdaten (Read-Only, tms.partners) | **Deployed** | [PROJ-2a.1](PROJ-2a.1-kunden-stammdaten.md) | 2026-07-02 |
 | PROJ-11 | Kundendetailseite (erweitert) | **Deployed** ✅ | [PROJ-11](PROJ-11-kundendetailseite.md) | 2026-07-02 |
