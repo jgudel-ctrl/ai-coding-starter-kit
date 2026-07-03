@@ -1,7 +1,7 @@
 # PROJ-17 — Auftrags-Default im Kunden-Detail
 
 ## Status
-**In Progress — Spec geschrieben, wartet auf Freigabe**
+**Deployed ✅** (2026-07-03)
 
 ## Zusammenfassung (1 Satz)
 Neuer Tab „Auftrags-Default" auf der Kundendetailseite, der pro Kunden die Standard-Einstellungen für Aufträge anzeigt und für Admins bearbeitbar macht: Wie kommt Werkzeug zu uns, wie wird es zurückgesendet, wer ist der Fahrer, wie oft wird abgeholt.
