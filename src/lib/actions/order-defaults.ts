@@ -3,13 +3,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import type {
-  INBOUND_OPTIONS,
-  OUTBOUND_OPTIONS,
-  PICKUP_STATUS_OPTIONS,
-} from "./order-defaults-shared";
-
-// ─── Types ───────────────────────────────────────────────
 
 export type OrderDefault = {
   id: string;
@@ -41,8 +34,6 @@ export type UpsertResult =
   | { ok: true }
   | { ok: false; error: string };
 
-// ─── READ: Auftrags-Default für einen Kunden laden ───────
-
 export async function getPartnerOrderDefault(
   partnerId: string,
 ): Promise<OrderDefaultResult> {
@@ -63,37 +54,30 @@ export async function getPartnerOrderDefault(
   return { ok: true, data: data as OrderDefault | null };
 }
 
-// ─── READ: Alle aktiven Fahrer laden ─────────────────────
-
 export async function getDrivers(): Promise<DriversResult> {
-  const supabase = await createClient();
+  const serviceClient = createAdminClient({ schema: "public" });
 
-  // profiles-Tabelle ist im public Schema, roles ist ein Array
-  const { data, error } = await supabase
+  const { data, error } = await serviceClient
     .from("profiles")
-    .select("id, full_name")
+    .select("id, full_name, roles")
     .eq("status", "aktiv");
 
   if (error) {
-    console.error("[getDrivers]", error);
+    console.error("[getDrivers] Error:", error);
     return { ok: false, error: "Konnte Fahrer nicht laden." };
   }
 
-  // Filtere nur Profile, die die Rolle "fahrer" haben
-  const drivers: DriverOption[] = (data ?? [])
-    .filter((p: any) => p.roles && Array.isArray(p.roles) && p.roles.includes("fahrer"))
+  // Filter: Nur User mit Rolle 'fahrer' im Array
+  const drivers: DriverOption[] = (data || [])
+    .filter((p: any) => p.roles?.includes('fahrer'))
     .map((p: any) => ({
       id: p.id,
       full_name: p.full_name || "Unbekannt",
-    }));
-
-  // Alphabetisch sortieren
-  drivers.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    }))
+    .sort((a: any, b: any) => a.full_name.localeCompare(b.full_name));
 
   return { ok: true, data: drivers };
 }
-
-// ─── WRITE: Auftrags-Default erstellen/aktualisieren ─────
 
 export async function upsertPartnerOrderDefault(
   partnerId: string,
@@ -105,7 +89,6 @@ export async function upsertPartnerOrderDefault(
     pickup_cycle_count?: number | null;
   },
 ): Promise<UpsertResult> {
-  // Admin-Check auf Serverseite
   const supabase = await createClient();
   const { data: isAdmin, error: adminError } = await supabase.rpc("is_active_admin");
 
@@ -113,10 +96,8 @@ export async function upsertPartnerOrderDefault(
     return { ok: false, error: "Nur Admins dürfen Auftrags-Defaults bearbeiten." };
   }
 
-  // Service-Role für Schreibzugriff (tms-Schema)
   const serviceClient = createAdminClient({ schema: "tms" });
 
-  // Validierung: driver_id Pflicht bei bestimmten Kombinationen
   const needsDriver =
     values.inbound_type === "Abholservice durch Gudel Werkzeuge" ||
     values.outbound_type === "Bringen";
@@ -125,7 +106,6 @@ export async function upsertPartnerOrderDefault(
     return { ok: false, error: "Fahrer ist bei Abholservice oder 'Bringen' erforderlich." };
   }
 
-  // Prüfen ob Eintrag existiert
   const { data: existing } = await serviceClient
     .from("partner_order_defaults")
     .select("id")
@@ -143,13 +123,11 @@ export async function upsertPartnerOrderDefault(
 
   let error;
   if (existing) {
-    // Update
     ({ error } = await serviceClient
       .from("partner_order_defaults")
       .update(payload)
       .eq("partner_id", partnerId));
   } else {
-    // Insert
     ({ error } = await serviceClient
       .from("partner_order_defaults")
       .insert(payload));
