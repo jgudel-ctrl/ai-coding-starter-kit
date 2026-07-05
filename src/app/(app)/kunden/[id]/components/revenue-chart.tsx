@@ -163,7 +163,8 @@ function RevenueSummary({
       title: "Schärfumsatz / Auftrag",
       value: avgRevenuePerOrder,
       display: formatMoney(avgRevenuePerOrder),
-      previous: prevAvgRevenuePerOrder,
+      previous: 0,
+      subText: currentTotalOrders > 0 ? `${currentTotalOrders} Aufträge` : "Keine Aufträge",
       icon: Calculator,
       color: "text-indigo-600",
       bg: "bg-indigo-50",
@@ -196,6 +197,9 @@ function RevenueSummary({
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-muted-foreground truncate">{card.title}</p>
                 <p className="text-lg font-semibold truncate">{card.display}</p>
+                {'subText' in card && card.subText && (
+                  <p className="text-xs text-muted-foreground mt-0.5">{card.subText}</p>
+                )}
                 {card.previous > 0 && (
                   <div className="mt-1">
                     <ChangeIndicator current={card.value} previous={card.previous} />
