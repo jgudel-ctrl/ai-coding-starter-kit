@@ -20,7 +20,6 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Calculator,
-  Equal,
 } from "lucide-react";
 import {
   getPartnerRollingRevenue,
@@ -69,16 +68,6 @@ function ChangeIndicator({ current, previous }: { current: number; previous: num
   );
 }
 
-function calculateMedian(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 0) {
-    return (sorted[mid - 1] + sorted[mid]) / 2;
-  }
-  return sorted[mid];
-}
-
 function RevenueSummary({
   data,
   previousYearData,
@@ -103,12 +92,7 @@ function RevenueSummary({
     orderCounts.set(key, (orderCounts.get(key) || 0) + 1);
   }
 
-  // Aktuelle Periode: bestimme Jahr-Range
-  const currentYear = data.length > 0 ? data[data.length - 1].year : new Date().getFullYear();
-  const prevYear = currentYear - 1;
-
   // Aktuelle Periode
-  const currentMonthlyValues: number[] = [];
   let currentTotalOrders = 0;
   let currentTotalRevenue = 0;
 
@@ -118,17 +102,14 @@ function RevenueSummary({
     const revenue = item.revenue_total;
 
     if (orders > 0 && revenue > 0) {
-      currentMonthlyValues.push(revenue / orders);
       currentTotalOrders += orders;
       currentTotalRevenue += revenue;
     }
   }
 
   const avgRevenuePerOrder = currentTotalOrders > 0 ? currentTotalRevenue / currentTotalOrders : 0;
-  const medianRevenuePerOrder = calculateMedian(currentMonthlyValues);
 
   // Vorherige Periode
-  const prevMonthlyValues: number[] = [];
   let prevTotalOrders = 0;
   let prevTotalRevenue = 0;
 
@@ -139,7 +120,6 @@ function RevenueSummary({
       const revenue = item.revenue_total;
 
       if (orders > 0 && revenue > 0) {
-        prevMonthlyValues.push(revenue / orders);
         prevTotalOrders += orders;
         prevTotalRevenue += revenue;
       }
@@ -147,7 +127,6 @@ function RevenueSummary({
   }
 
   const prevAvgRevenuePerOrder = prevTotalOrders > 0 ? prevTotalRevenue / prevTotalOrders : 0;
-  const prevMedianRevenuePerOrder = calculateMedian(prevMonthlyValues);
 
   const cards = [
     {
@@ -183,21 +162,12 @@ function RevenueSummary({
     {
       title: "Schärfumsatz / Auftrag",
       value: avgRevenuePerOrder,
-      display: (
-        <div className="space-y-0.5">
-          <p className="text-lg font-semibold truncate">{formatMoney(avgRevenuePerOrder)}</p>
-          <p className="text-xs text-muted-foreground">Ø Durchschnitt</p>
-        </div>
-      ),
+      display: formatMoney(avgRevenuePerOrder),
       previous: prevAvgRevenuePerOrder,
       icon: Calculator,
       color: "text-indigo-600",
       bg: "bg-indigo-50",
       borderColor: "border-indigo-100",
-      customDisplay: true,
-      subValue: medianRevenuePerOrder,
-      subLabel: "Median",
-      previousSub: prevMedianRevenuePerOrder,
     },
   ];
 
@@ -225,36 +195,11 @@ function RevenueSummary({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-muted-foreground truncate">{card.title}</p>
-                {card.customDisplay ? (
-                  <>
-                    {card.display}
-                    {card.subValue > 0 && (
-                      <div className="mt-0.5">
-                        <p className="text-xs text-muted-foreground">
-                          Median: {formatMoney(card.subValue)}
-                        </p>
-                      </div>
-                    )}
-                    {card.previous > 0 && (
-                      <div className="mt-1 space-y-0.5">
-                        <ChangeIndicator current={card.value} previous={card.previous} />
-                        {card.previousSub > 0 && card.subValue > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            Median: {formatMoney(card.previousSub)} (Vorjahr)
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <p className="text-lg font-semibold truncate">{card.display}</p>
-                    {card.previous > 0 && (
-                      <div className="mt-1">
-                        <ChangeIndicator current={card.value} previous={card.previous} />
-                      </div>
-                    )}
-                  </>
+                <p className="text-lg font-semibold truncate">{card.display}</p>
+                {card.previous > 0 && (
+                  <div className="mt-1">
+                    <ChangeIndicator current={card.value} previous={card.previous} />
+                  </div>
                 )}
               </div>
             </div>
