@@ -13,13 +13,22 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Wrench, Package, ReceiptText, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import {
+  TrendingUp,
+  Wrench,
+  Package,
+  ArrowUpRight,
+  ArrowDownRight,
+  Calculator,
+  Equal,
+} from "lucide-react";
 import {
   getPartnerRollingRevenue,
   getPartnerYearlyRevenue,
   RollingMonth,
   YearlyRevenue,
 } from "@/lib/actions/revenue";
+import { getPartnerOrderDates } from "@/lib/actions/order-stats";
 
 interface RevenueChartProps {
   partnerId: string;
@@ -60,17 +69,85 @@ function ChangeIndicator({ current, previous }: { current: number; previous: num
   );
 }
 
+function calculateMedian(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
 function RevenueSummary({
   data,
   previousYearData,
   periodLabel,
+  orderDates,
 }: {
   data: RollingMonth[];
   previousYearData?: RollingMonth[];
   periodLabel: string;
+  orderDates: string[];
 }) {
   const totals = calculateTotals(data);
   const previousTotals = previousYearData ? calculateTotals(previousYearData) : null;
+
+  // --- Auftragsstatistik berechnen ---
+  // Aufträge nach Jahr/Monat gruppieren
+  const orderCounts = new Map<string, number>();
+  for (const dateStr of orderDates) {
+    if (!dateStr) continue;
+    const d = new Date(dateStr);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    orderCounts.set(key, (orderCounts.get(key) || 0) + 1);
+  }
+
+  // Aktuelle Periode: bestimme Jahr-Range
+  const currentYear = data.length > 0 ? data[data.length - 1].year : new Date().getFullYear();
+  const prevYear = currentYear - 1;
+
+  // Aktuelle Periode
+  const currentMonthlyValues: number[] = [];
+  let currentTotalOrders = 0;
+  let currentTotalRevenue = 0;
+
+  for (const item of data) {
+    const key = `${item.year}-${String(item.month).padStart(2, "0")}`;
+    const orders = orderCounts.get(key) || 0;
+    const revenue = item.revenue_total;
+
+    if (orders > 0 && revenue > 0) {
+      currentMonthlyValues.push(revenue / orders);
+      currentTotalOrders += orders;
+      currentTotalRevenue += revenue;
+    }
+  }
+
+  const avgRevenuePerOrder = currentTotalOrders > 0 ? currentTotalRevenue / currentTotalOrders : 0;
+  const medianRevenuePerOrder = calculateMedian(currentMonthlyValues);
+
+  // Vorherige Periode
+  const prevMonthlyValues: number[] = [];
+  let prevTotalOrders = 0;
+  let prevTotalRevenue = 0;
+
+  if (previousYearData) {
+    for (const item of previousYearData) {
+      const key = `${item.year}-${String(item.month).padStart(2, "0")}`;
+      const orders = orderCounts.get(key) || 0;
+      const revenue = item.revenue_total;
+
+      if (orders > 0 && revenue > 0) {
+        prevMonthlyValues.push(revenue / orders);
+        prevTotalOrders += orders;
+        prevTotalRevenue += revenue;
+      }
+    }
+  }
+
+  const prevAvgRevenuePerOrder = prevTotalOrders > 0 ? prevTotalRevenue / prevTotalOrders : 0;
+  const prevMedianRevenuePerOrder = calculateMedian(prevMonthlyValues);
 
   const cards = [
     {
@@ -104,14 +181,23 @@ function RevenueSummary({
       borderColor: "border-amber-100",
     },
     {
-      title: "Rechnungen",
-      value: totals.invoices,
-      display: totals.invoices.toString(),
-      previous: previousTotals?.invoices || 0,
-      icon: ReceiptText,
-      color: "text-slate-600",
-      bg: "bg-slate-50",
-      borderColor: "border-slate-100",
+      title: "Schärfumsatz / Auftrag",
+      value: avgRevenuePerOrder,
+      display: (
+        <div className="space-y-0.5">
+          <p className="text-lg font-semibold truncate">{formatMoney(avgRevenuePerOrder)}</p>
+          <p className="text-xs text-muted-foreground">Ø Durchschnitt</p>
+        </div>
+      ),
+      previous: prevAvgRevenuePerOrder,
+      icon: Calculator,
+      color: "text-indigo-600",
+      bg: "bg-indigo-50",
+      borderColor: "border-indigo-100",
+      customDisplay: true,
+      subValue: medianRevenuePerOrder,
+      subLabel: "Median",
+      previousSub: prevMedianRevenuePerOrder,
     },
   ];
 
@@ -139,11 +225,36 @@ function RevenueSummary({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-muted-foreground truncate">{card.title}</p>
-                <p className="text-lg font-semibold truncate">{card.display}</p>
-                {card.previous > 0 && (
-                  <div className="mt-1">
-                    <ChangeIndicator current={card.value} previous={card.previous} />
-                  </div>
+                {card.customDisplay ? (
+                  <>
+                    {card.display}
+                    {card.subValue > 0 && (
+                      <div className="mt-0.5">
+                        <p className="text-xs text-muted-foreground">
+                          Median: {formatMoney(card.subValue)}
+                        </p>
+                      </div>
+                    )}
+                    {card.previous > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        <ChangeIndicator current={card.value} previous={card.previous} />
+                        {card.previousSub > 0 && card.subValue > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Median: {formatMoney(card.previousSub)} (Vorjahr)
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-semibold truncate">{card.display}</p>
+                    {card.previous > 0 && (
+                      <div className="mt-1">
+                        <ChangeIndicator current={card.value} previous={card.previous} />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -156,28 +267,41 @@ function RevenueSummary({
 
 export function RevenueChart({ partnerId }: RevenueChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("month");
-  
+
   // Rolling 12 Months
   const [currentPeriod, setCurrentPeriod] = useState<RollingMonth[]>([]);
   const [previousPeriod, setPreviousPeriod] = useState<RollingMonth[]>([]);
   const [hasPreviousPeriod, setHasPreviousPeriod] = useState(false);
-  
+
+  // Auftragsdaten
+  const [orderDates, setOrderDates] = useState<string[]>([]);
+
   // Jahresdaten
   const [yearlyData, setYearlyData] = useState<YearlyRevenue[]>([]);
-  
+
   const [isLoading, setIsLoading] = useState(true);
 
-  // Rolling 12 Months laden
+  // Rolling 12 Months + Aufträge laden
   useEffect(() => {
     async function loadRolling() {
       if (viewMode !== "month") return;
       setIsLoading(true);
-      const result = await getPartnerRollingRevenue(partnerId);
-      if (result.ok) {
-        setCurrentPeriod(result.currentPeriod);
-        setPreviousPeriod(result.previousPeriod);
-        setHasPreviousPeriod(result.hasPreviousPeriod);
+
+      const [revenueResult, orderResult] = await Promise.all([
+        getPartnerRollingRevenue(partnerId),
+        getPartnerOrderDates(partnerId),
+      ]);
+
+      if (revenueResult.ok) {
+        setCurrentPeriod(revenueResult.currentPeriod);
+        setPreviousPeriod(revenueResult.previousPeriod);
+        setHasPreviousPeriod(revenueResult.hasPreviousPeriod);
       }
+
+      if (orderResult.ok) {
+        setOrderDates(orderResult.dates);
+      }
+
       setIsLoading(false);
     }
     loadRolling();
@@ -266,6 +390,7 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
           data={currentPeriod}
           previousYearData={hasPreviousPeriod ? previousPeriod : undefined}
           periodLabel={periodLabel}
+          orderDates={orderDates}
         />
       )}
 
@@ -286,7 +411,7 @@ export function RevenueChart({ partnerId }: RevenueChartProps) {
               <p className="text-sm text-muted-foreground">{periodLabel}</p>
             )}
           </div>
-          
+
           <div className="flex items-center gap-3">
             {/* Toggle Monat/Jahr */}
             <div className="flex rounded-lg border bg-muted p-1">
