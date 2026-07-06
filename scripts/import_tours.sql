@@ -1,21 +1,22 @@
--- Import-Script für Aufträge aus CSV
--- PROJ-19 - Auftragsverwaltung
+-- Import-Script für Touren aus CSV
+-- PROJ-19 - Tourenverwaltung (ehemals Auftragsverwaltung)
+-- Tabelle umbenannt: orders → tours am 2026-07-06
 -- Datei muss zuerst in den Container kopiert werden
 
 -- Schritt 1: Temporäre Tabelle erstellen
-DROP TABLE IF EXISTS temp_orders_import;
-CREATE TEMP TABLE temp_orders_import (
+DROP TABLE IF EXISTS temp_tours_import;
+CREATE TEMP TABLE temp_tours_import (
     kundennummer TEXT,
     datum DATE,
     status TEXT
 );
 
 -- Schritt 2: CSV laden (Pfad anpassen!)
-COPY temp_orders_import FROM '/tmp/orders_import.csv' 
+COPY temp_tours_import FROM '/tmp/tours_import.csv' 
 WITH (FORMAT csv, HEADER true, DELIMITER ';');
 
 -- Schritt 3: Prüfe Daten
-SELECT status, COUNT(*) FROM temp_orders_import GROUP BY status ORDER BY COUNT(*) DESC;
+SELECT status, COUNT(*) FROM temp_tours_import GROUP BY status ORDER BY COUNT(*) DESC;
 
 -- Schritt 4: Hole Admin-User ID
 DO $$
@@ -25,7 +26,7 @@ BEGIN
     SELECT id INTO admin_user_id FROM auth.users WHERE raw_user_meta_data->>'role' = 'admin' LIMIT 1;
     
     -- Schritt 5: Importiere Daten
-    INSERT INTO tms.orders (
+    INSERT INTO tms.tours (
         partner_id,
         status,
         geplantes_abholdatum,
@@ -55,7 +56,7 @@ BEGIN
         COALESCE(pod.pickup_delivery_status = 'Automatisch', false) as abholservice,
         admin_user_id as erstellt_von,
         'Migration aus Alt-System' as titel
-    FROM temp_orders_import ti
+    FROM temp_tours_import ti
     LEFT JOIN tms.partners p ON p.easybill_customer_number = ti.kundennummer
     LEFT JOIN tms.partner_order_defaults pod ON pod.partner_id = p.id
     WHERE ti.kundennummer IS NOT NULL AND ti.kundennummer != '';
@@ -66,13 +67,13 @@ BEGIN
 END $$;
 
 -- Schritt 7: Verifizierung
-SELECT status, COUNT(*) as anzahl FROM tms.orders GROUP BY status ORDER BY anzahl DESC;
+SELECT status, COUNT(*) as anzahl FROM tms.tours GROUP BY status ORDER BY anzahl DESC;
 
 -- Schritt 8: Beispiele
-SELECT p.company_name, o.status, o.geplantes_abholdatum, o.tatsaechliches_abholdatum, o.zugang
-FROM tms.orders o
-JOIN tms.partners p ON p.id = o.partner_id
+SELECT p.company_name, t.status, t.geplantes_abholdatum, t.tatsaechliches_abholdatum, t.zugang
+FROM tms.tours t
+JOIN tms.partners p ON p.id = t.partner_id
 LIMIT 10;
 
 -- Cleanup
-DROP TABLE IF EXISTS temp_orders_import;
+DROP TABLE IF EXISTS temp_tours_import;

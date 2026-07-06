@@ -96,7 +96,7 @@ def get_admin_user(conn):
     cur.close()
     return row[0] if row else None
 
-def import_orders(conn, data, db_kunden, admin_user_id):
+def import_tours(conn, data, db_kunden, admin_user_id):
     print("\n📥 Starte Import...")
     cur = conn.cursor()
     partner_ids = [db_kunden[row['kundennummer']]['id'] for row in data if row['kundennummer'] in db_kunden]
@@ -135,7 +135,7 @@ def import_orders(conn, data, db_kunden, admin_user_id):
         
         try:
             cur.execute("""
-                INSERT INTO tms.orders (
+                INSERT INTO tms.tours (
                     partner_id, status, geplantes_abholdatum, tatsaechliches_abholdatum,
                     zugang, ruecksendung, fahrer_id, abholzyklus_wochen, abholservice,
                     erstellt_von, titel
@@ -165,12 +165,12 @@ def import_orders(conn, data, db_kunden, admin_user_id):
 def verify_import(conn):
     print("\n🔍 Verifizierung:")
     cur = conn.cursor()
-    cur.execute("SELECT status, COUNT(*) FROM tms.orders GROUP BY status ORDER BY COUNT(*) DESC")
+    cur.execute("SELECT status, COUNT(*) FROM tms.tours GROUP BY status ORDER BY COUNT(*) DESC")
     for row in cur.fetchall():
         print(f"  {row[0]}: {row[1]}")
     cur.execute("""
-        SELECT p.company_name, o.status, o.geplantes_abholdatum, o.tatsaechliches_abholdatum
-        FROM tms.orders o JOIN tms.partners p ON p.id = o.partner_id LIMIT 5
+        SELECT p.company_name, t.status, t.geplantes_abholdatum, t.tatsaechliches_abholdatum
+        FROM tms.tours t JOIN tms.partners p ON p.id = t.partner_id LIMIT 5
     """)
     print("\nBeispiele:")
     for row in cur.fetchall():
@@ -191,10 +191,10 @@ def main():
         admin_user_id = get_admin_user(conn)
         print(f"✅ Admin-User: {admin_user_id}")
         
-        inserted, skipped, errors = import_orders(conn, data, db_kunden, admin_user_id)
+        inserted, skipped, errors = import_tours(conn, data, db_kunden, admin_user_id)
         verify_import(conn)
         
-        print(f"\n🎉 {inserted} Aufträge importiert!")
+        print(f"\n🎉 {inserted} Touren importiert!")
     finally:
         conn.close()
         print("\n🔌 Verbindung geschlossen")

@@ -1,5 +1,6 @@
--- Migration: Erstelle orders Tabelle (Auftragsverwaltung)
--- PROJ-19
+-- Migration: Erstelle tours Tabelle (Tourenverwaltung)
+-- PROJ-19 (umbenannt von orders → tours am 2026-07-06)
+-- Die Tabelle enthält Touren/Abholungen (Fahrer, Abholdatum), nicht Bestellungen
 
 -- Enum-Typen erstellen (falls noch nicht vorhanden)
 DO $$ BEGIN
@@ -12,7 +13,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- Status-Enum für Aufträge
+-- Status-Enum für Touren
 DO $$ BEGIN
     CREATE TYPE order_status AS ENUM (
         'geplant',           -- Fahrer soll noch vorbeikommen
@@ -24,8 +25,8 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- Tabelle: orders (Aufträge)
-CREATE TABLE IF NOT EXISTS tms.orders (
+-- Tabelle: tours (Touren)
+CREATE TABLE IF NOT EXISTS tms.tours (
     -- Primärschlüssel
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
@@ -37,7 +38,7 @@ CREATE TABLE IF NOT EXISTS tms.orders (
     titel TEXT,
     beschreibung TEXT,
     
-    -- Status des Auftrags
+    -- Status der Tour
     status order_status NOT NULL DEFAULT 'geplant',
     
     -- Auftrags-Defaults (vom Kunden übernommen beim Anlegen)
@@ -62,15 +63,15 @@ CREATE TABLE IF NOT EXISTS tms.orders (
 );
 
 -- Indizes für Performance
-CREATE INDEX IF NOT EXISTS idx_orders_partner_id ON tms.orders(partner_id);
-CREATE INDEX IF NOT EXISTS idx_orders_status ON tms.orders(status);
-CREATE INDEX IF NOT EXISTS idx_orders_fahrer_id ON tms.orders(fahrer_id);
-CREATE INDEX IF NOT EXISTS idx_orders_geplantes_abholdatum ON tms.orders(geplantes_abholdatum);
-CREATE INDEX IF NOT EXISTS idx_orders_tatsaechliches_abholdatum ON tms.orders(tatsaechliches_abholdatum);
-CREATE INDEX IF NOT EXISTS idx_orders_erstellt_am ON tms.orders(erstellt_am DESC);
+CREATE INDEX IF NOT EXISTS idx_tours_partner_id ON tms.tours(partner_id);
+CREATE INDEX IF NOT EXISTS idx_tours_status ON tms.tours(status);
+CREATE INDEX IF NOT EXISTS idx_tours_fahrer_id ON tms.tours(fahrer_id);
+CREATE INDEX IF NOT EXISTS idx_tours_geplantes_abholdatum ON tms.tours(geplantes_abholdatum);
+CREATE INDEX IF NOT EXISTS idx_tours_tatsaechliches_abholdatum ON tms.tours(tatsaechliches_abholdatum);
+CREATE INDEX IF NOT EXISTS idx_tours_erstellt_am ON tms.tours(erstellt_am DESC);
 
 -- Trigger: Auto-Update geaendert_am
-CREATE OR REPLACE FUNCTION tms.update_orders_modified_column()
+CREATE OR REPLACE FUNCTION tms.update_tours_modified_column()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.geaendert_am = now();
@@ -78,22 +79,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS update_orders_modified ON tms.orders;
-CREATE TRIGGER update_orders_modified
-    BEFORE UPDATE ON tms.orders
+DROP TRIGGER IF EXISTS update_tours_modified ON tms.tours;
+CREATE TRIGGER update_tours_modified
+    BEFORE UPDATE ON tms.tours
     FOR EACH ROW
-    EXECUTE FUNCTION tms.update_orders_modified_column();
+    EXECUTE FUNCTION tms.update_tours_modified_column();
 
 -- RLS aktivieren
-ALTER TABLE tms.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tms.tours ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
--- Alle eingeloggten User können lesen
-CREATE POLICY orders_select_policy ON tms.orders
+CREATE POLICY tours_select_policy ON tms.tours
     FOR SELECT USING (auth.uid() IS NOT NULL);
 
--- Nur Admins können alle Aufträge bearbeiten
-CREATE POLICY orders_update_admin_policy ON tms.orders
+CREATE POLICY tours_update_admin_policy ON tms.tours
     FOR UPDATE USING (
         EXISTS (
             SELECT 1 FROM auth.users
@@ -101,8 +100,7 @@ CREATE POLICY orders_update_admin_policy ON tms.orders
         )
     );
 
--- Nur Admins können neue Aufträge anlegen
-CREATE POLICY orders_insert_admin_policy ON tms.orders
+CREATE POLICY tours_insert_admin_policy ON tms.tours
     FOR INSERT WITH CHECK (
         EXISTS (
             SELECT 1 FROM auth.users
@@ -110,8 +108,7 @@ CREATE POLICY orders_insert_admin_policy ON tms.orders
         )
     );
 
--- Admins können löschen
-CREATE POLICY orders_delete_admin_policy ON tms.orders
+CREATE POLICY tours_delete_admin_policy ON tms.tours
     FOR DELETE USING (
         EXISTS (
             SELECT 1 FROM auth.users
@@ -120,11 +117,11 @@ CREATE POLICY orders_delete_admin_policy ON tms.orders
     );
 
 -- Kommentare
-COMMENT ON TABLE tms.orders IS 'Aufträge - Arbeitsaufträge von Kunden';
-COMMENT ON COLUMN tms.orders.status IS 'Status: geplant, abgeholt, in_bearbeitung, abgeschlossen, archiviert';
-COMMENT ON COLUMN tms.orders.geplantes_abholdatum IS 'Wann soll der Fahrer vorbeikommen?';
-COMMENT ON COLUMN tms.orders.tatsaechliches_abholdatum IS 'Wann wurde tatsächlich abgeholt?';
+COMMENT ON TABLE tms.tours IS 'Touren - Fahrer-Aufträge/Abholungen bei Kunden';
+COMMENT ON COLUMN tms.tours.status IS 'Status: geplant, abgeholt, in_bearbeitung, abgeschlossen, archiviert';
+COMMENT ON COLUMN tms.tours.geplantes_abholdatum IS 'Wann soll der Fahrer vorbeikommen?';
+COMMENT ON COLUMN tms.tours.tatsaechliches_abholdatum IS 'Wann wurde tatsächlich abgeholt?';
 
 -- Service Role Grant
-GRANT ALL ON tms.orders TO service_role;
-GRANT ALL ON tms.orders TO postgres;
+GRANT ALL ON tms.tours TO service_role;
+GRANT ALL ON tms.tours TO postgres;
