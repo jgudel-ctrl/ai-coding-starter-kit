@@ -51,6 +51,35 @@ Für jedes neue Feature gilt verbindlich:
 - Status in features/INDEX.md und Feature-Header immer synchron halten.
 - Dokumentiert in: CLAUDE.md (Abschnitt "Pflicht-Workflow") und `.claude/rules/workflow.md`
 
+## PROJ-21 Fahrer-Seite
+
+- **Status:** Deployed ✅ (2026-07-06)
+- **Features:**
+  1. Route `/fahrer` mit Listenansicht (heutige Abholungen) + Kartenansicht
+  2. Tabs: "Heute" und "Nächste 5 Tage"
+  3. Kalender-Ansicht: Gruppiert nach Datum mit Tages-Header
+  4. "Abgeholt"-Button setzt Status auf `erledigt`, Tour verschwindet aus Liste
+  5. Navigation zu Google Maps pro Kunde
+  6. Leer-Zustand wenn keine Abholungen
+  7. Mobile-first Design für Fahrer unterwegs
+- **Tech:** Leaflet (OpenStreetMap), Server Actions, revalidatePath
+- **Spec:** features/PROJ-21-fahrer-seite.md
+- **Architektur:** features/PROJ-21-architektur.md
+
+## PROJ-20 Logistik & Abholung
+
+- **Status:** Deployed ✅ (2026-07-06)
+- **Features:**
+  1. Neue Seite `/verwaltung/abholung` für Logistik-Planung
+  2. Kalender-Ansicht mit Monats-/Wochen-Ansicht
+  3. Drag & Drop zum Verschieben von Abhol-Terminen
+  4. Status: geplant, in_bearbeitung, abgeholt, abgeschlossen
+  5. Touren-Gruppierung nach Datum
+  6. Fahrer-Zuweisung pro Tour
+  7. Blockierte Tage (z.B. Feiertage) markierbar
+- **Tech:** date-fns, react-big-calendar, @dnd-kit
+- **Spec:** features/PROJ-20-logistik-abholung.md
+
 ## PROJ-19 Tourenverwaltung (ehemals "Auftragsverwaltung")
 
 - **Status:** Deployed ✅ (2026-07-05) | **Umbenannt:** 2026-07-06 (`tms.orders` → `tms.tours`)
