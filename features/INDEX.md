@@ -31,7 +31,7 @@
 | PROJ-9  | Benachrichtigungen (Rückläufer/Engpässe) | Roadmap | — | 2026-06-29 |
 | PROJ-10 | Dark Mode | Roadmap | — | 2026-06-29 |
 
-| PROJ-20 | Kundendetail — Logistik & Abholung (Tab erweitern + nächste Abholung) | **In Review** 🔄 | [PROJ-20](PROJ-20-logistik-abholung.md) | 2026-07-06 |
+| PROJ-20 | Kundendetail — Logistik & Abholung (Tab erweitern + nächste Abholung) | **Deployed** ✅ | [PROJ-20](PROJ-20-logistik-abholung.md) | 2026-07-06 |
 
 <!-- Add features above this line -->
 
