@@ -12,6 +12,7 @@ export type OrderDefault = {
   pickup_delivery_status: string | null;
   driver_id: string | null;
   pickup_cycle_count: number | null;
+  pickup_day: number | null;
   source: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -87,6 +88,7 @@ export async function upsertPartnerOrderDefault(
     pickup_delivery_status: string;
     driver_id?: string | null;
     pickup_cycle_count?: number | null;
+    pickup_day?: number | null;
   },
 ): Promise<UpsertResult> {
   const supabase = await createClient();
@@ -119,6 +121,7 @@ export async function upsertPartnerOrderDefault(
     pickup_delivery_status: values.pickup_delivery_status,
     driver_id: values.driver_id || null,
     pickup_cycle_count: values.pickup_cycle_count || null,
+    pickup_day: values.pickup_day || null,
   };
 
   let error;

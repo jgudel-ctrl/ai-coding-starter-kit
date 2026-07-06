@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderDefaultsModal } from "./order-defaults-modal";
 import type { OrderDefault, DriverOption } from "@/lib/actions/order-defaults";
+import { PICKUP_DAY_MAP } from "@/lib/actions/order-defaults-shared";
 
 interface OrderDefaultsCardProps {
   orderDefault: OrderDefault | null;
@@ -29,7 +30,7 @@ export function OrderDefaultsCard({
   return (
     <div className="rounded-lg border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-sm">📋 Auftrags-Default</h3>
+        <h3 className="font-semibold text-sm">📋 Logistik-Defaults</h3>
         {isAdmin && (
           <Button
             variant="ghost"
@@ -67,6 +68,18 @@ export function OrderDefaultsCard({
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground shrink-0">Fahrer</span>
             <span className="text-right">{driverName}</span>
+          </div>
+        )}
+
+        {/* Abholtag — nur bei Abholservice */}
+        {orderDefault?.inbound_type === "Abholservice durch Gudel Werkzeuge" && (
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground shrink-0">Abholtag</span>
+            <span className="text-right">
+              {orderDefault?.pickup_day
+                ? PICKUP_DAY_MAP[orderDefault.pickup_day] || "—"
+                : "—"}
+            </span>
           </div>
         )}
 

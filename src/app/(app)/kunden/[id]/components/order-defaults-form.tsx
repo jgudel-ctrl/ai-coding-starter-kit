@@ -10,6 +10,7 @@ import {
   INBOUND_OPTIONS,
   OUTBOUND_OPTIONS,
   PICKUP_STATUS_OPTIONS,
+  PICKUP_DAY_OPTIONS,
 } from "@/lib/actions/order-defaults-shared";
 import type { OrderDefault, DriverOption } from "@/lib/actions/order-defaults";
 
@@ -32,6 +33,9 @@ export function OrderDefaultsForm({
   const [driverId, setDriverId] = useState(orderDefault?.driver_id || "");
   const [cycleCount, setCycleCount] = useState(
     orderDefault?.pickup_cycle_count?.toString() || ""
+  );
+  const [pickupDay, setPickupDay] = useState(
+    orderDefault?.pickup_day?.toString() || ""
   );
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -80,6 +84,7 @@ export function OrderDefaultsForm({
         pickup_delivery_status: pickupStatus,
         driver_id: driverId || null,
         pickup_cycle_count: cycleCount ? parseInt(cycleCount, 10) : null,
+        pickup_day: pickupDay ? parseInt(pickupDay, 10) : null,
       });
 
       setLoading(false);
@@ -167,6 +172,28 @@ export function OrderDefaultsForm({
           {errors.driver_id && (
             <p className="text-xs text-red-500">{errors.driver_id}</p>
           )}
+        </div>
+      )}
+
+      {/* Abholtag — nur bei Abholservice */}
+      {inboundType === "Abholservice durch Gudel Werkzeuge" && (
+        <div className="space-y-1">
+          <label htmlFor="pickup_day" className="text-sm font-medium">
+            Abholtag
+          </label>
+          <select
+            id="pickup_day"
+            value={pickupDay}
+            onChange={(e) => setPickupDay(e.target.value)}
+            className="w-full rounded-md border px-3 py-2 text-sm border-input bg-background"
+          >
+            <option value="">— Kein Abholtag —</option>
+            {PICKUP_DAY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 

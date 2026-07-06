@@ -50,7 +50,7 @@ export async function getPartnerOrderStats(
 
     // 2. Monatliche Auftragsanzahl laden
     const { data: orderData, error: orderError } = await supabase
-      .from("orders")
+      .from("tours")
       .select("tatsaechliches_abholdatum")
       .eq("partner_id", partnerId)
       .in("status", ["abgeholt", "archiviert"]);
@@ -166,7 +166,7 @@ export async function getPartnerOrderDates(partnerId: string) {
     const supabase = createAdminClient({ schema: "tms" });
 
     const { data, error } = await supabase
-      .from("orders")
+      .from("tours")
       .select("tatsaechliches_abholdatum")
       .eq("partner_id", partnerId)
       .in("status", ["abgeholt", "archiviert"])

@@ -9,6 +9,8 @@ import { AddressCard } from "./components/address-card";
 import { ContactsList } from "./components/contacts-list";
 import { RevenueChart } from "./components/revenue-chart";
 import { OrderHistoryTable } from "./components/order-history-table";
+import { getNextPickupTour } from "@/lib/actions/pickup-tours";
+import { NextPickupCard } from "./components/next-pickup-card";
 import { OrderDefaultsCard } from "./components/order-defaults-card";
 
 export default async function KundeDetailPage({
@@ -23,11 +25,13 @@ export default async function KundeDetailPage({
     partnerResult,
     orderDefaultResult,
     driversResult,
+    tourResult,
     currentProfile,
   ] = await Promise.all([
     getPartnerById(id),
     getPartnerOrderDefault(id),
     getDrivers(),
+    getNextPickupTour(id),
     getCurrentProfile(),
   ]);
 
@@ -38,7 +42,12 @@ export default async function KundeDetailPage({
   const { partner, addresses, contacts } = partnerResult;
   const orderDefault = orderDefaultResult.ok ? orderDefaultResult.data : null;
   const drivers = driversResult.ok ? driversResult.data : [];
+  const nextTour = tourResult.ok ? tourResult.data : null;
   const isAdmin = currentProfile?.roles?.includes("admin") ?? false;
+
+  // Abholservice prüfen
+  const hasAbholservice = orderDefault?.inbound_type === "Abholservice durch Gudel Werkzeuge";
+  const hasPlannedTour = nextTour !== null;
 
   // Rechnungsadresse finden
   const rechnungsAdresse = addresses.find(
@@ -103,6 +112,9 @@ export default async function KundeDetailPage({
               drivers={drivers}
               isAdmin={isAdmin}
               partnerId={id}
+              nextTour={nextTour}
+              hasAbholservice={hasAbholservice}
+              hasPlannedTour={hasPlannedTour}
             />
           ),
         }}
@@ -233,26 +245,40 @@ function OrderHistoryTab({ partnerId }: { partnerId: string }) {
   return <OrderHistoryTable partnerId={partnerId} />;
 }
 
-/* ────────────────────── AUFTRAGS-DEFAULT TAB ────────────────────── */
+/* ────────────────────── LOGISTIK & ABHOLUNG TAB ────────────────────── */
 
 function OrderDefaultsTab({
   orderDefault,
   drivers,
   isAdmin,
   partnerId,
+  nextTour,
+  hasAbholservice,
+  hasPlannedTour,
 }: {
   orderDefault: any;
   drivers: any[];
   isAdmin: boolean;
   partnerId: string;
+  nextTour: any;
+  hasAbholservice: boolean;
+  hasPlannedTour: boolean;
 }) {
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl space-y-6">
       <OrderDefaultsCard
         orderDefault={orderDefault}
         drivers={drivers}
         isAdmin={isAdmin}
         partnerId={partnerId}
+      />
+      
+      <NextPickupCard
+        tour={nextTour}
+        drivers={drivers}
+        partnerId={partnerId}
+        hasAbholservice={hasAbholservice}
+        hasPlannedTour={hasPlannedTour}
       />
     </div>
   );

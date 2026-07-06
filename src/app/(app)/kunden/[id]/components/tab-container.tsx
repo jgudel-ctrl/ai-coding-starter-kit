@@ -6,7 +6,7 @@ import {
   LayoutDashboard,
   BarChart3,
   PackageSearch,
-  ClipboardList,
+  Truck,
 } from "lucide-react";
 
 interface TabContainerProps {
@@ -53,9 +53,9 @@ export function TabContainer({ defaultTab = "overview", children }: TabContainer
           value="defaults"
           className="flex flex-col items-center gap-0.5 px-1 py-1.5 h-auto text-xs sm:text-sm sm:flex-row sm:gap-1.5 sm:px-3"
         >
-          <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-          <span className="hidden sm:inline">Auftrags-Default</span>
-          <span className="sm:hidden">Auftr.</span>
+          <Truck className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+          <span className="hidden sm:inline">Logistik &amp; Abholung</span>
+          <span className="sm:hidden">Logistik</span>
         </TabsTrigger>
       </TabsList>
 
