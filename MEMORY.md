@@ -51,6 +51,23 @@ Für jedes neue Feature gilt verbindlich:
 - Status in features/INDEX.md und Feature-Header immer synchron halten.
 - Dokumentiert in: CLAUDE.md (Abschnitt "Pflicht-Workflow") und `.claude/rules/workflow.md`
 
+## PROJ-22 Abholungskalender (Admin)
+
+- **Status:** Deployed ✅ (2026-07-07)
+- **Features:**
+  1. Kalender-Ansicht für blockierte Tage (Feiertage, Wochenende, manuelle Blocker)
+  2. Monats-, Wochen-, Jahres-Ansicht
+  3. Blocker-Verwaltung direkt im Kalender (click → popup → löschen/erstellen)
+  4. Feiertage auto-initialisiert (NRW, 12 Monate im Voraus)
+  5. Monatlicher Cron-Job für Feiertag-Updates
+  6. Wochenende visuell markiert (grau, "WE")
+- **Tech-Learnings:**
+  - `force-dynamic` + `revalidate = 0` notwendig für Daten, die sich ändern
+  - Server Actions mit Anon-Client + RLS schlagen fehl bei SSR (keine Cookies) → Service-Role-Client verwenden für Admin-Seiten
+  - `parseLocalDate()` für korrekte Datum-Vergleiche (kein UTC-Shift)
+- **Spec:** features/PROJ-22-kalender-blockierte-tage.md
+- **Architektur:** features/PROJ-22-architektur.md
+
 ## PROJ-21 Fahrer-Seite
 
 - **Status:** Deployed ✅ (2026-07-06)
