@@ -270,7 +270,7 @@ export function PickupCalendar({ periods }: PickupCalendarProps) {
                   </div>
                 ) : isWeekend ? (
                   <div className="mt-0.5 text-[10px] leading-tight md:text-xs">
-                    <span className="block truncate text-gray-500">Wochenende</span>
+                    <span className="block truncate text-gray-500">WE</span>
                   </div>
                 ) : null}
               </button>
