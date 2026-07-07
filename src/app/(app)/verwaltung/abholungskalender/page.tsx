@@ -7,6 +7,11 @@ export const metadata = {
   title: "Abholungskalender — TMS 2.0",
 };
 
+// WICHTIG: Diese Seite darf NICHT statisch gepreredert werden,
+// da sich die Blocker-Daten (Feiertage, manuelle Blocker) ändern können.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AbholungskalenderPage() {
   const profile = await getCurrentProfile();
 
