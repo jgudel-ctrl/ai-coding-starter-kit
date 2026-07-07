@@ -130,6 +130,7 @@ export async function addBlockedPeriod(
   }
 
   revalidatePath("/verwaltung/blocker");
+  revalidatePath("/verwaltung/abholungskalender");
   return { ok: true };
 }
 
@@ -157,5 +158,6 @@ export async function removeBlockedPeriod(id: string): Promise<UpsertResult> {
   }
 
   revalidatePath("/verwaltung/blocker");
+  revalidatePath("/verwaltung/abholungskalender");
   return { ok: true };
 }
