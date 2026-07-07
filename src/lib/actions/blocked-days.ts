@@ -129,7 +129,6 @@ export async function addBlockedPeriod(
     return { ok: false, error: "Hinzufügen fehlgeschlagen." };
   }
 
-  revalidatePath("/verwaltung/blocker");
   revalidatePath("/verwaltung/abholungskalender");
   return { ok: true };
 }
@@ -157,7 +156,6 @@ export async function removeBlockedPeriod(id: string): Promise<UpsertResult> {
     return { ok: false, error: "Löschen fehlgeschlagen." };
   }
 
-  revalidatePath("/verwaltung/blocker");
   revalidatePath("/verwaltung/abholungskalender");
   return { ok: true };
 }

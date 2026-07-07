@@ -75,7 +75,6 @@ const navigationItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { href: "/verwaltung/nutzer", label: "Nutzerverwaltung", icon: Users },
   { href: "/verwaltung/abholungskalender", label: "Abholungskalender", icon: CalendarDays },
-  { href: "/verwaltung/blocker", label: "Blocker-Verwaltung", icon: CalendarDays },
 ];
 
 function NavigationSheet({ isAdmin }: { isAdmin: boolean }) {
