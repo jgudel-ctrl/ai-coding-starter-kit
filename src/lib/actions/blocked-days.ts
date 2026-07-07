@@ -24,12 +24,13 @@ export type UpsertResult =
 
 /**
  * Alle Blocker-Zeiträume laden (inkl. Feiertage)
+ * Verwendet Service-Role-Client um RLS zu umgehen —
+ * die Seite ist eh Admin-geschützt.
  */
 export async function getBlockedPeriods(): Promise<BlockedPeriodsResult> {
-  const supabase = await createClient();
+  const serviceClient = createAdminClient({ schema: "tms" });
 
-  const { data, error } = await supabase
-    .schema("tms")
+  const { data, error } = await serviceClient
     .from("blocked_days")
     .select("*")
     .order("von_datum", { ascending: true });
