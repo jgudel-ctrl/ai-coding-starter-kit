@@ -153,6 +153,11 @@ export function PickupCalendar({ periods }: PickupCalendarProps) {
   /* ─────────────── Dialog-Handling ─────────────────────────────────── */
   const openDayDialog = useCallback(
     (date: Date) => {
+      const jsDay = date.getDay();
+      if (jsDay === 0 || jsDay === 6) {
+        toast.info("Wochenende — keine Abholungen möglich");
+        return;
+      }
       setSelectedDate(date);
       const blocked = getBlockedForDate(date, periodsWithDates);
       if (blocked.length > 0) {
@@ -254,7 +259,7 @@ export function PickupCalendar({ periods }: PickupCalendarProps) {
                 <span className={`text-sm font-medium ${isHeute ? "text-primary" : "text-foreground"}`}>
                   {day.getDate()}
                 </span>
-                {blocked && (
+                {blocked ? (
                   <div className="mt-0.5 text-[10px] leading-tight md:text-xs">
                     <span
                       className={`block truncate ${
@@ -266,7 +271,11 @@ export function PickupCalendar({ periods }: PickupCalendarProps) {
                       {blocked.grund}
                     </span>
                   </div>
-                )}
+                ) : isWeekend ? (
+                  <div className="mt-0.5 text-[10px] leading-tight md:text-xs">
+                    <span className="block truncate text-gray-500">Wochenende</span>
+                  </div>
+                ) : null}
               </button>
             );
           })}
@@ -443,6 +452,10 @@ export function PickupCalendar({ periods }: PickupCalendarProps) {
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-sm bg-orange-200" />
           <span>Manueller Blocker</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded-sm bg-gray-200" />
+          <span>Wochenende</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-sm ring-1 ring-primary" />
