@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* TMS 2.0 — Tokens aus docs/design-system.md (Brand #FF6B6D, Türkis #4ECDC4) */
+    --background: 220 22% 97%;        /* #F7F8FA App-Hintergrund */
+    --foreground: 230 20% 13%;        /* #1A1D29 Primärtext */
+    --card: 0 0% 100%;                /* #FFFFFF Bento-Tiles */
+    --card-foreground: 230 20% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 20% 13%;
+    --primary: 359 100% 71%;          /* #FF6B6D Koralle (Brand) */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 176 56% 55%;         /* #4ECDC4 Türkis (komplementär) */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 220 22% 95%;
+    --muted-foreground: 220 9% 46%;   /* #6B7280 Sekundärtext */
+    --accent: 220 22% 95%;
+    --accent-foreground: 230 20% 13%;
+    --destructive: 359 100% 71%;      /* Koralle dient zugleich als Alert/Fehler */
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 92%;            /* #EAECEF */
+    --input: 220 13% 92%;
+    --ring: 359 100% 71%;             /* Fokus-Ring in Brand-Koralle */
+    --radius: 1rem;                   /* rounded-2xl Basis */
+    /* Chart-Reihen: Koralle · Türkis · Indigo · Amber · Blau · Grün */
+    --chart-1: 359 100% 71%;          /* #FF6B6D */
+    --chart-2: 176 56% 55%;           /* #4ECDC4 */
+    --chart-3: 249 100% 71%;          /* #7C6CFF */
+    --chart-4: 39 100% 50%;           /* #F59F00 */
+    --chart-5: 206 90% 64%;           /* #4DABF7 */
+    /* Stationsfarben (semantisch, durchgängig für Werkzeug-Status) */
+    --station-wareneingang: 206 90% 64%;        /* #4DABF7 Blau */
+    --station-arbeitsvorbereitung: 249 100% 71%;/* #7C6CFF Indigo */
+    --station-maschine: 39 100% 50%;            /* #F59F00 Amber */
+    --station-qs: 176 56% 55%;                  /* #4ECDC4 Türkis */
+    --station-warenausgang: 132 41% 51%;        /* #2FB344 Grün */
+    --station-extern: 210 9% 56%;               /* #868E96 Slate */
+    --station-ruecklaeufer: 359 100% 71%;       /* #FF6B6D Koralle/Achtung */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 230 20% 13%;
+    --sidebar-primary: 359 100% 71%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 22% 95%;
+    --sidebar-accent-foreground: 230 20% 13%;
+    --sidebar-border: 220 13% 92%;
+    --sidebar-ring: 359 100% 71%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
