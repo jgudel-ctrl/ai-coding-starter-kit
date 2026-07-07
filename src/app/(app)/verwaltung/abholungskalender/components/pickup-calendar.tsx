@@ -28,21 +28,20 @@ interface PickupCalendarProps {
 
 const WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const MONATS_NAMEN = [
-  "Januar",
-  "Februar",
-  "März",
-  "April",
-  "Mai",
-  "Juni",
-  "Juli",
-  "August",
-  "September",
-  "Oktober",
-  "November",
-  "Dezember",
+  "Januar", "Februar", "März", "April", "Mai", "Juni",
+  "Juli", "August", "September", "Oktober", "November", "Dezember",
 ];
 
 /* ───────────────────────── Hilfsfunktionen ─────────────────────────── */
+
+/**
+ * Parst ein ISO-Datum ("2026-01-01") als lokale Zeit — KEINE UTC-Verschiebung.
+ * Das ist der Schlüssel: DB speichert reine Daten, wir brauchen sie in lokaler Zeit.
+ */
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
 
 function isSameDay(a: Date, b: Date): boolean {
   return (
@@ -53,9 +52,8 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 function isBlocked(date: Date, periods: BlockedPeriodWithDates[]): { typ: string; grund: string } | null {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   for (const p of periods) {
-    if (d >= p.vonDate && d <= p.bisDate) {
+    if (date >= p.vonDate && date <= p.bisDate) {
       return { typ: p.typ, grund: p.grund };
     }
   }
@@ -63,8 +61,7 @@ function isBlocked(date: Date, periods: BlockedPeriodWithDates[]): { typ: string
 }
 
 function getBlockedForDate(date: Date, periods: BlockedPeriodWithDates[]): BlockedPeriodWithDates[] {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  return periods.filter((p) => d >= p.vonDate && d <= p.bisDate);
+  return periods.filter((p) => date >= p.vonDate && date <= p.bisDate);
 }
 
 function getDaysInMonth(year: number, month: number): Date[] {
@@ -122,8 +119,8 @@ export function PickupCalendar({ periods }: PickupCalendarProps) {
     () =>
       periods.map((p) => ({
         ...p,
-        vonDate: new Date(p.von_datum),
-        bisDate: new Date(p.bis_datum),
+        vonDate: parseLocalDate(p.von_datum),
+        bisDate: parseLocalDate(p.bis_datum),
       })),
     [periods]
   );
