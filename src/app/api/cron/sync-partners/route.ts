@@ -82,9 +82,17 @@ export async function runPartnerSyncCron() {
 
     console.log(`[Cron] Sync complete: ${processed} processed, ${created} created, ${updated} updated, ${failed} failed`);
 
-    // 4. Ergebnis loggen
+    // 5. NACH dem Sync: Dubletten-Prüfung auf alle Partner
+    console.log('[Cron] Starting duplicate check...');
+    const duplicateResult = await runDuplicateCheck(supabase);
+    if (duplicateResult.checked > 0) {
+      console.log(`[Cron] Duplicate check: ${duplicateResult.checked} checked, ${duplicateResult.duplicates} found`);
+      actions.push(`duplicate_check: ${duplicateResult.checked} checked, ${duplicateResult.duplicates} duplicates`);
+    }
+
+    // 6. Ergebnis loggen
     await logCronResult(supabase, {
-      actions: [`processed ${processed}`, `created ${created}`, `updated ${updated}`, `failed ${failed}`],
+      actions: [`processed ${processed}`, `created ${created}`, `updated ${updated}`, `failed ${failed}`, ...duplicateResult.actions],
       errors,
     });
 
@@ -261,5 +269,58 @@ export async function GET() {
       { success: false, error: error.message },
       { status: 500 }
     );
+  }
+}
+
+// ============================================================
+// Dubletten-Prüfung: NACH dem Import auf ALLE Partner
+// ============================================================
+
+import { checkForDuplicates } from "@/lib/easybill/partner-sync";
+
+async function runDuplicateCheck(supabase: any) {
+  const actions: string[] = [];
+  let duplicates = 0;
+
+  try {
+    // Alle aktiven Partner ohne "duplicate_of" holen
+    const { data: partners, error } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('is_active', true)
+      .is('duplicate_of', null)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[Cron] Duplicate check error:', error.message);
+      return { checked: 0, duplicates: 0, actions: ['duplicate_check_failed'] };
+    }
+
+    console.log(`[Cron] Checking ${partners?.length || 0} partners for duplicates...`);
+
+    // Jeden Partner prüfen
+    for (const partner of partners || []) {
+      await checkForDuplicates(supabase, partner.id);
+    }
+
+    // Ergebnis zählen
+    const { data: duplicateCount, error: countError } = await supabase
+      .from('partners')
+      .select('id', { count: 'exact', head: true })
+      .not('duplicate_of', 'is', null);
+
+    if (!countError && duplicateCount) {
+      duplicates = duplicateCount;
+    }
+
+    return {
+      checked: partners?.length || 0,
+      duplicates,
+      actions: [`duplicate_check_checked_${partners?.length || 0}`, `duplicate_found_${duplicates}`],
+    };
+
+  } catch (error: any) {
+    console.error('[Cron] Duplicate check fatal error:', error);
+    return { checked: 0, duplicates: 0, actions: ['duplicate_check_error'] };
   }
 }

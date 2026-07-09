@@ -182,9 +182,6 @@ async function createPartner(supabase: any, customer: EasybillCustomer) {
     throw new Error(`Partner konnte nicht angelegt werden: ${error.message}`);
   }
 
-  // Regel Ü3: Dubletten-Prüfung
-  await checkForDuplicates(supabase, partner.id);
-
   return { partnerId: partner.id, errors };
 }
 
@@ -412,7 +409,7 @@ async function syncDiscounts(supabase: any, partnerId: string, easybillCustomerI
 // Dubletten-Prüfung (Regel Ü3)
 // ============================================================
 
-async function checkForDuplicates(supabase: any, partnerId: string) {
+export async function checkForDuplicates(supabase: any, partnerId: string) {
   try {
     // Partner-Daten holen
     const { data: partner } = await supabase
