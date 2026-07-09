@@ -7,6 +7,7 @@ import {
   BarChart3,
   PackageSearch,
   Truck,
+  Tag,
 } from "lucide-react";
 
 interface TabContainerProps {
@@ -16,6 +17,7 @@ interface TabContainerProps {
     revenue: React.ReactNode;
     orders: React.ReactNode;
     defaults: React.ReactNode;
+    discounts: React.ReactNode;
   };
 }
 
@@ -24,7 +26,7 @@ export function TabContainer({ defaultTab = "overview", children }: TabContainer
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="mb-6 grid w-full grid-cols-4">
+      <TabsList className="mb-6 grid w-full grid-cols-5">
         <TabsTrigger
           value="overview"
           className="flex flex-col items-center gap-0.5 px-1 py-1.5 h-auto text-xs sm:text-sm sm:flex-row sm:gap-1.5 sm:px-3"
@@ -57,6 +59,14 @@ export function TabContainer({ defaultTab = "overview", children }: TabContainer
           <span className="hidden sm:inline">Logistik &amp; Abholung</span>
           <span className="sm:hidden">Logistik</span>
         </TabsTrigger>
+        <TabsTrigger
+          value="discounts"
+          className="flex flex-col items-center gap-0.5 px-1 py-1.5 h-auto text-xs sm:text-sm sm:flex-row sm:gap-1.5 sm:px-3"
+        >
+          <Tag className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+          <span className="hidden sm:inline">Rabatte</span>
+          <span className="sm:hidden">Rab.</span>
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="overview" className="mt-0">
@@ -70,6 +80,9 @@ export function TabContainer({ defaultTab = "overview", children }: TabContainer
       </TabsContent>
       <TabsContent value="defaults" className="mt-0">
         {children.defaults}
+      </TabsContent>
+      <TabsContent value="discounts" className="mt-0">
+        {children.discounts}
       </TabsContent>
     </Tabs>
   );

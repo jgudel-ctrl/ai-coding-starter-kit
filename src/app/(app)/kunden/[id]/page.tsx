@@ -12,6 +12,7 @@ import { OrderHistoryTable } from "./components/order-history-table";
 import { getNextPickupTour } from "@/lib/actions/pickup-tours";
 import { NextPickupCard } from "./components/next-pickup-card";
 import { OrderDefaultsCard } from "./components/order-defaults-card";
+import { PartnerDiscountsCard } from "./components/discounts-card";
 
 export default async function KundeDetailPage({
   params,
@@ -117,6 +118,7 @@ export default async function KundeDetailPage({
               hasPlannedTour={hasPlannedTour}
             />
           ),
+          discounts: <DiscountsTab partnerId={id} />,
         }}
       />
     </div>
@@ -280,6 +282,16 @@ function OrderDefaultsTab({
         hasAbholservice={hasAbholservice}
         hasPlannedTour={hasPlannedTour}
       />
+    </div>
+  );
+}
+
+/* ────────────────────── RABATTE TAB ────────────────────── */
+
+function DiscountsTab({ partnerId }: { partnerId: string }) {
+  return (
+    <div className="max-w-2xl">
+      <PartnerDiscountsCard partnerId={partnerId} />
     </div>
   );
 }
