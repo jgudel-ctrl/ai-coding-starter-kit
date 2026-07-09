@@ -1,0 +1,28 @@
+🚀 SYNC FEHLENDE SEITEN 121-141
+
+✅ Seite 121: 100 gespeichert | Total: 100 | Items: 759
+✅ Seite 122: 100 gespeichert | Total: 200 | Items: 1554
+✅ Seite 123: 100 gespeichert | Total: 300 | Items: 2538
+✅ Seite 124: 100 gespeichert | Total: 400 | Items: 3175
+✅ Seite 125: 100 gespeichert | Total: 500 | Items: 4134
+✅ Seite 126: 100 gespeichert | Total: 600 | Items: 4838
+✅ Seite 127: 100 gespeichert | Total: 700 | Items: 5480
+✅ Seite 128: 100 gespeichert | Total: 800 | Items: 6190
+✅ Seite 129: 100 gespeichert | Total: 900 | Items: 7000
+✅ Seite 130: 100 gespeichert | Total: 1000 | Items: 7742
+✅ Seite 131: 100 gespeichert | Total: 1100 | Items: 8585
+✅ Seite 132: 100 gespeichert | Total: 1200 | Items: 9432
+✅ Seite 133: 100 gespeichert | Total: 1300 | Items: 10203
+✅ Seite 134: 100 gespeichert | Total: 1400 | Items: 10808
+✅ Seite 135: 100 gespeichert | Total: 1500 | Items: 11655
+✅ Seite 136: 100 gespeichert | Total: 1600 | Items: 12630
+✅ Seite 137: 100 gespeichert | Total: 1700 | Items: 13398
+✅ Seite 138: 100 gespeichert | Total: 1800 | Items: 14337
+✅ Seite 139: 100 gespeichert | Total: 1900 | Items: 15072
+✅ Seite 140: 100 gespeichert | Total: 2000 | Items: 16222
+✅ Seite 141: 100 gespeichert | Total: 2100 | Items: 17282
+
+✅ FERTIG — 2100 Rechnungen, 17282 Items in 7.0min
+ERROR:  column "sync_type" of relation "invoice_sync_log" does not exist
+LINE 1: INSERT INTO tms.invoice_sync_log (sync_type, documents_fetch...
+                                          ^

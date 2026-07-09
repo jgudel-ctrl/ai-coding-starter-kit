@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Send,
   Users,
+  Receipt,
 } from "lucide-react";
 
 import { type UserRole } from "@/lib/roles";
@@ -75,6 +76,7 @@ const navigationItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { href: "/verwaltung/nutzer", label: "Nutzerverwaltung", icon: Users },
   { href: "/verwaltung/abholungskalender", label: "Abholungskalender", icon: CalendarDays },
+  { href: "/verwaltung/invoices", label: "Rechnungen", icon: Receipt },
 ];
 
 function NavigationSheet({ isAdmin }: { isAdmin: boolean }) {
@@ -224,6 +226,10 @@ export function AppHeader({ user }: { user: CurrentUser }) {
                   <DropdownMenuItem onClick={() => router.push("/verwaltung/nutzer")}>
                     <Users className="mr-2 h-4 w-4" />
                     Nutzerverwaltung
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/verwaltung/invoices")}>
+                    <Receipt className="mr-2 h-4 w-4" />
+                    Rechnungen
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => router.push("/verwaltung/abholungskalender")}>
                     <CalendarDays className="mr-2 h-4 w-4" />
