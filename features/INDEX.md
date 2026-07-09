@@ -26,7 +26,7 @@
 | PROJ-21 | Fahrer-Seite | ✅ Deployed | 2026-07-06 |
 | PROJ-22 | Kalender für blockierte Tage | ✅ Deployed | 2026-07-07 |
 | PROJ-23 | Invoice-Datenbank + Preislisten-Matching | ✅ Deployed | 2026-07-09 |
-| PROJ-24 | Easybill Partner-Sync via Webhook | 🟢 In Progress | 2026-07-09 |
+| PROJ-24 | Easybill Partner-Sync via Webhook | ✅ Deployed | 2026-07-09 |
 
 ---
 

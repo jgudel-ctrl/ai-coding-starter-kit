@@ -1,6 +1,6 @@
 # PROJ-24: Easybill Partner-Sync via Webhook
 
-> Status: 🟢 In Progress  
+> Status: ✅ Deployed | 2026-07-09 19:04 UTC  
 > Letzte Änderung: 2026-07-09  
 > Verantwortlich: Jan Bernd Gudel / Klausi  
 > Priorität: Hoch (67 fehlende Kunden, keine Neuanlage seit ~4 Wochen)
