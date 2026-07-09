@@ -13,7 +13,7 @@
 import { syncEasybillCustomer } from "../src/lib/easybill/partner-sync";
 import { createAdminClient } from "../src/lib/supabase/admin";
 
-const EASYBILL_API_KEY = proces…KEY;
+const EASYBILL_API_KEY = process.env.EASYBILL_API_KEY!;
 const PAGE_SIZE = 100;
 
 async function fetchAllEasybillCustomers(): Promise<any[]> {
