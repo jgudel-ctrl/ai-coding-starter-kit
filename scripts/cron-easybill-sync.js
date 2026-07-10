@@ -1,5 +1,6 @@
 /**
  * PROJ-24: Stündlicher Fallback-Cronjob für Easybill Sync
+ * + Geoapify Adressvalidierung
  */
 
 const fs = require('fs');
@@ -16,11 +17,16 @@ function getEnv(key) {
 const EASYBILL_API_KEY = getEnv('EASYBILL_API_KEY');
 const SUPABASE_URL = 'https://supabase.gudel-werkzeuge.de';
 const SUPABASE_KEY = getEnv('SUPABASE_SERVICE_ROLE_KEY');
+const GEOAPIFY_API_KEY = getEnv('GEOAPIFY_API_KEY');
 
 if (!EASYBILL_API_KEY || !SUPABASE_KEY) {
   console.error('❌ EASYBILL_API_KEY oder SUPABASE_SERVICE_ROLE_KEY fehlt in .env.production');
   process.exit(1);
 }
+
+// ============================================================
+// Easybill API
+// ============================================================
 
 async function easybillFetch(endpoint, options = {}) {
   const url = 'https://api.easybill.de/rest/v1' + endpoint;
@@ -40,6 +46,10 @@ async function easybillFetch(endpoint, options = {}) {
   
   return res.json();
 }
+
+// ============================================================
+// Supabase (Admin)
+// ============================================================
 
 async function supabaseQuery(table, query = '') {
   const url = SUPABASE_URL + '/rest/v1/' + table + '?' + query;
@@ -77,6 +87,117 @@ async function supabaseInsert(table, data) {
   
   return res.json();
 }
+
+async function supabaseUpdate(table, id, data) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + id, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify(data),
+  });
+  
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error('Supabase update failed: ' + res.status + ' ' + text);
+  }
+  
+  return true;
+}
+
+// ============================================================
+// Geoapify Adressvalidierung
+// ============================================================
+
+async function validateAddressWithGeoapify(street, postalCode, city, country) {
+  if (!GEOAPIFY_API_KEY) {
+    return { status: 'error', confidence: null, errorMessage: 'GEOAPIFY_API_KEY fehlt' };
+  }
+  
+  if (!street && !city) {
+    return { status: 'invalid', confidence: 0 };
+  }
+  
+  try {
+    const addressParts = [street, city, country].filter(Boolean).join(', ');
+    
+    const url = new URL('https://api.geoapify.com/v1/geocode/search');
+    url.searchParams.set('text', addressParts);
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('apiKey', GEOAPIFY_API_KEY);
+    
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    
+    if (!res.ok) {
+      return { status: 'error', confidence: null, errorMessage: 'HTTP ' + res.status };
+    }
+    
+    const data = await res.json();
+    
+    if (!data.results || data.results.length === 0) {
+      return { status: 'invalid', confidence: 0 };
+    }
+    
+    const result = data.results[0];
+    const confidence = result.rank?.confidence || 0.8;
+    
+    const suggestedStreet = result.street 
+      ? (result.street + ' ' + (result.housenumber || '')).trim() 
+      : null;
+    
+    if (result.rank?.confidence === 1 || result.rank?.match_type === 'full_match') {
+      return {
+        status: 'valid',
+        confidence: confidence,
+        suggestedStreet: suggestedStreet,
+        suggestedPostalCode: result.postcode || null,
+        suggestedCity: result.city || result.county || null,
+        suggestedCountry: result.country || null,
+      };
+    }
+    
+    return {
+      status: 'suggestion',
+      confidence: confidence,
+      suggestedStreet: suggestedStreet,
+      suggestedPostalCode: result.postcode || null,
+      suggestedCity: result.city || result.county || null,
+      suggestedCountry: result.country || null,
+    };
+    
+  } catch (error) {
+    return { status: 'error', confidence: null, errorMessage: error.message };
+  }
+}
+
+async function saveGeoapifyResult(addressId, validation) {
+  try {
+    await supabaseUpdate('partner_addresses', addressId, {
+      geoapify_status: validation.status,
+      geoapify_confidence: validation.confidence,
+      geoapify_suggested_street: validation.suggestedStreet || null,
+      geoapify_suggested_postal_code: validation.suggestedPostalCode || null,
+      geoapify_suggested_city: validation.suggestedCity || null,
+      geoapify_suggested_country: validation.suggestedCountry || null,
+      geoapify_validated_at: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.log('      ⚠️  Geoapify-Update fehlgeschlagen: ' + error.message);
+    return false;
+  }
+}
+
+// ============================================================
+// Sync-Logik
+// ============================================================
 
 function normalizeDisplayName(customer) {
   if (customer.company_name && customer.company_name.trim()) return customer.company_name.trim();
@@ -154,6 +275,7 @@ async function syncCustomer(customer) {
     const partnerId = partner[0].id;
     actions.push('partner_created');
     
+    // Rechnungsadresse + Geoapify
     if (customer.address) {
       const billingAddress = {
         partner_id: partnerId,
@@ -170,10 +292,24 @@ async function syncCustomer(customer) {
         raw_easybill_payload: customer.address,
       };
       
-      await supabaseInsert('partner_addresses', billingAddress);
+      const insertedBilling = await supabaseInsert('partner_addresses', billingAddress);
       actions.push('billing_address_created');
+      
+      // Geoapify Validierung
+      const validation = await validateAddressWithGeoapify(
+        billingAddress.street,
+        billingAddress.postal_code,
+        billingAddress.city,
+        billingAddress.country
+      );
+      
+      if (validation.status !== 'error') {
+        await saveGeoapifyResult(insertedBilling[0].id, validation);
+        actions.push('geoapify_validated');
+      }
     }
     
+    // Lieferadresse + Geoapify
     const deliveryAddr = customer.delivery_address || customer.address;
     if (deliveryAddr) {
       const shippingAddress = {
@@ -191,8 +327,21 @@ async function syncCustomer(customer) {
         raw_easybill_payload: deliveryAddr,
       };
       
-      await supabaseInsert('partner_addresses', shippingAddress);
+      const insertedShipping = await supabaseInsert('partner_addresses', shippingAddress);
       actions.push('shipping_address_created');
+      
+      // Geoapify Validierung
+      const validation = await validateAddressWithGeoapify(
+        shippingAddress.street,
+        shippingAddress.postal_code,
+        shippingAddress.city,
+        shippingAddress.country
+      );
+      
+      if (validation.status !== 'error') {
+        await saveGeoapifyResult(insertedShipping[0].id, validation);
+        actions.push('geoapify_validated');
+      }
     }
     
     if (primaryEmail) {
@@ -244,8 +393,12 @@ async function syncCustomer(customer) {
   }
 }
 
+// ============================================================
+// Hauptfunktion
+// ============================================================
+
 async function main() {
-  console.log('🕐 PROJ-24: Stündlicher Easybill Sync\n');
+  console.log('🕐 PROJ-24: Stündlicher Easybill Sync + Geoapify\n');
   const startTime = Date.now();
   
   try {
@@ -291,7 +444,7 @@ async function main() {
       
       if (result.success && result.errors.length === 0) {
         successCount++;
-        console.log('      ✅ OK');
+        console.log('      ✅ OK' + (result.actions.includes('geoapify_validated') ? ' + 🌍 Geoapify' : ''));
       } else if (result.success && result.errors.length > 0) {
         warningCount++;
         console.log('      ⚠️  ' + result.errors.join(', '));

@@ -13,6 +13,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { validateAddress, saveValidationResult } from "@/lib/geoapify/validate-address";
 
 // ============================================================
 // Typen
@@ -256,9 +257,29 @@ async function syncAddresses(supabase: any, partnerId: string, customer: Easybil
       raw_easybill_payload: customer.address,
     };
 
-    const { error } = await supabase.from('partner_addresses').insert(billingAddress);
-    if (error) errors.push(`Rechnungsadresse fehlgeschlagen: ${error.message}`);
-    else actions.push('billing_address_inserted');
+    const { data: insertedBilling, error: billingError } = await supabase
+      .from('partner_addresses')
+      .insert(billingAddress)
+      .select('id')
+      .single();
+    
+    if (billingError) {
+      errors.push(`Rechnungsadresse fehlgeschlagen: ${billingError.message}`);
+    } else {
+      actions.push('billing_address_inserted');
+      
+      // Geoapify Validierung (Regel Ü6)
+      const validation = await validateAddress(
+        billingAddress.street,
+        billingAddress.postal_code,
+        billingAddress.city,
+        billingAddress.country
+      );
+      
+      if (validation.status !== 'error') {
+        await saveValidationResult(supabase, insertedBilling.id, validation);
+      }
+    }
   }
 
   // Lieferadresse (Regel Ü4: falls nicht vorhanden, Rechnungsadresse kopieren)
@@ -279,9 +300,29 @@ async function syncAddresses(supabase: any, partnerId: string, customer: Easybil
       raw_easybill_payload: deliveryAddr,
     };
 
-    const { error } = await supabase.from('partner_addresses').insert(shippingAddress);
-    if (error) errors.push(`Lieferadresse fehlgeschlagen: ${error.message}`);
-    else actions.push('shipping_address_inserted');
+    const { data: insertedShipping, error: shippingError } = await supabase
+      .from('partner_addresses')
+      .insert(shippingAddress)
+      .select('id')
+      .single();
+    
+    if (shippingError) {
+      errors.push(`Lieferadresse fehlgeschlagen: ${shippingError.message}`);
+    } else {
+      actions.push('shipping_address_inserted');
+      
+      // Geoapify Validierung (Regel Ü6)
+      const validation = await validateAddress(
+        shippingAddress.street,
+        shippingAddress.postal_code,
+        shippingAddress.city,
+        shippingAddress.country
+      );
+      
+      if (validation.status !== 'error') {
+        await saveValidationResult(supabase, insertedShipping.id, validation);
+      }
+    }
   }
 
   return { actions, errors };
