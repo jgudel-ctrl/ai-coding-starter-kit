@@ -40,3 +40,4 @@ next-env.d.ts
 
 # Einmalige Seed-Ausgabe (Start-Passwort erster Admin) – niemals committen
 FIRST_ADMIN_PASSWORD.txt
+.env.production
