@@ -10,9 +10,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Alle Pfade außer statischen Assets / Bildern. So läuft der Routenschutz
-     * für jede Seite, ohne Next-Interna oder das Logo unnötig zu prüfen.
+     * Alle Pfade außer statischen Assets / Bildern / Webhooks.
+     * Webhooks dürfen keine Auth-Prüfung durchlaufen.
      */
-    "/((?!_next/static|_next/image|favicon.ico|logo.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|logo.svg|api/webhooks|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

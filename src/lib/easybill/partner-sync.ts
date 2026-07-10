@@ -65,7 +65,7 @@ export interface EasybillAddress {
 export async function syncEasybillCustomer(
   customer: EasybillCustomer
 ): Promise<SyncPartnerResult> {
-  const supabase = createAdminClient();
+  const supabase = createAdminClient({ schema: 'tms' });  // Schema 'tms' statt 'public'
   const actions: string[] = [];
   const errors: string[] = [];
 
