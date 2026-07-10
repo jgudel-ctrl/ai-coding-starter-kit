@@ -10,14 +10,16 @@ const fs = require('fs');
 // Config aus .env.production
 const envPath = '/home/botti/.openclaw/workspace/.env.production';
 const envContent = fs.readFileSync(envPath, 'utf8');
-const getEnv = (key: string) => {
-  const match = envContent.match(new RegExp(`${key}=([^\\n]+)`));
-  return match ? match[1].trim() : '';
-};
 
-const EASYBILL_API_KEY = ***'EASYBILL_API_KEY');
+function getEnv(key: string): string {
+  const regex = new RegExp('^' + key + '=(.+)$', 'm');
+  const match = envContent.match(regex);
+  return match ? match[1].trim() : '';
+}
+
+const EASYBILL_API_KEY = getEnv('EASYBILL_API_KEY');
 const SUPABASE_URL = 'https://supabase.gudel-werkzeuge.de';
-const SUPABASE_KEY = ***'SUPABASE_SERVICE_ROLE_KEY');
+const SUPABASE_KEY = getEnv('SUPABASE_SERVICE_ROLE_KEY');
 
 if (!EASYBILL_API_KEY || !SUPABASE_KEY) {
   console.error('❌ EASYBILL_API_KEY oder SUPABASE_SERVICE_ROLE_KEY fehlt in .env.production');

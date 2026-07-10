@@ -1,6 +1,6 @@
 # PROJ-24: Easybill Partner-Sync via Webhook
 
-> Status: 🔄 In Progress | 2026-07-10 08:24 UTC  
+> Status: ✅ Deployed | 2026-07-10 09:06 UTC  
 > Verantwortlich: Jan Bernd Gudel / Klausi  
 > Priorität: Hoch (67 fehlende Kunden, keine Neuanlage seit ~4 Wochen)
 
@@ -22,6 +22,8 @@ Einen automatischen Sync, der neue Kunden aus Easybill in unsere Superbays-Daten
 ## IST-Stand (2026-07-10)
 
 ### Bereits erledigt:
+- ✅ **Initial-Import abgeschlossen:** 4 fehlende Kunden importiert (alle mit Warnungen wegen fehlender E-Mail)
+- ✅ **Total in DB:** 2.658 Kunden (inkl. 44 Dubletten deaktiviert)
 - ✅ Webhook konfiguriert (ID: **37919**)
 - ✅ App-Proxy angepasst → Webhooks ohne Login-Prüfung
 - ✅ Sync-Funktion gefixt (Schema `tms` statt `public`)
@@ -30,9 +32,8 @@ Einen automatischen Sync, der neue Kunden aus Easybill in unsere Superbays-Daten
 - ✅ Kundensuche: Toggle für aktive/inaktive Kunden
 
 ### Noch offen (PROJ-24 Scope):
-1. **Initial-Import der 67 fehlenden Kunden** — Alle aktiven Easybill-Kunden → in unsere DB
-2. **Stündlicher Fallback-Cronjob** — Wenn Webhook mal nicht ankommt
-3. **Geoapify-Adressvalidierung** — Adressen prüfen und korrigieren
+1. **Stündlicher Fallback-Cronjob** — Wenn Webhook mal nicht ankommt
+2. **Geoapify-Adressvalidierung** — Adressen prüfen und korrigieren
 
 ---
 
