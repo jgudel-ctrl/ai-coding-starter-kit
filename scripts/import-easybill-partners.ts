@@ -15,9 +15,9 @@ const getEnv = (key: string) => {
   return match ? match[1].trim() : '';
 };
 
-const EASYBILL_API_KEY = getEnv('EASYBILL_API_KEY');
+const EASYBILL_API_KEY = ***'EASYBILL_API_KEY');
 const SUPABASE_URL = 'https://supabase.gudel-werkzeuge.de';
-const SUPABASE_KEY = getEnv('SUPABASE_SERVICE_ROLE_KEY');
+const SUPABASE_KEY = ***'SUPABASE_SERVICE_ROLE_KEY');
 
 if (!EASYBILL_API_KEY || !SUPABASE_KEY) {
   console.error('❌ EASYBILL_API_KEY oder SUPABASE_SERVICE_ROLE_KEY fehlt in .env.production');
@@ -110,7 +110,29 @@ async function supabaseInsert(table: string, data: any) {
 }
 
 // ============================================================
-// Sync-Logik (vereinfachte Version von partner-sync.ts)
+// Prüfung: Existiert Kunde schon?
+// ============================================================
+
+async function checkExistingCustomer(customer: any) {
+  // 1. Prüfe easybill_id (PRIMARY KEY)
+  const byId = await supabaseQuery('partners', `easybill_id=eq.${customer.id}&select=id,easybill_customer_number`);
+  if (byId && byId.length > 0) {
+    return { exists: true, reason: 'easybill_id_exists', partnerId: byId[0].id };
+  }
+  
+  // 2. Prüfe easybill_customer_number (nur wenn nicht leer)
+  if (customer.number && customer.number.trim()) {
+    const byNumber = await supabaseQuery('partners', `easybill_customer_number=eq.${encodeURIComponent(customer.number)}&select=id`);
+    if (byNumber && byNumber.length > 0) {
+      return { exists: true, reason: 'customer_number_exists', partnerId: byNumber[0].id };
+    }
+  }
+  
+  return { exists: false };
+}
+
+// ============================================================
+// Sync-Logik
 // ============================================================
 
 function normalizeDisplayName(customer: any): string {
@@ -124,6 +146,12 @@ async function syncCustomer(customer: any) {
   const errors: string[] = [];
   
   try {
+    // Prüfen ob Kunde schon existiert
+    const existing = await checkExistingCustomer(customer);
+    if (existing.exists) {
+      return { success: true, skipped: true, reason: existing.reason, actions, errors };
+    }
+    
     // 1. Partner anlegen
     const displayName = normalizeDisplayName(customer);
     const isActive = !customer.archived;
@@ -131,7 +159,7 @@ async function syncCustomer(customer: any) {
     
     const partnerData = {
       easybill_id: customer.id,
-      easybill_customer_number: customer.number,
+      easybill_customer_number: customer.number || null,
       partner_type: 'customer',
       entity_type: customer.company_name ? 'company' : 'person',
       company_name: customer.company_name || null,
@@ -220,10 +248,10 @@ async function syncCustomer(customer: any) {
       errors.push('Keine E-Mail-Adresse vorhanden');
     }
     
-    // 4. Sync-Log eintragen (mit korrekten Spalten)
+    // 4. Sync-Log eintragen
     await supabaseInsert('easybill_sync_logs', {
       easybill_id: customer.id,
-      easybill_customer_number: customer.number,
+      easybill_customer_number: customer.number || null,
       partner_id: partnerId,
       action: errors.length > 0 ? 'import_with_warnings' : 'import',
       target_table: 'partners',
@@ -239,7 +267,7 @@ async function syncCustomer(customer: any) {
     // Fehler loggen
     await supabaseInsert('easybill_sync_logs', {
       easybill_id: customer.id,
-      easybill_customer_number: customer.number,
+      easybill_customer_number: customer.number || null,
       partner_id: null,
       action: 'failed',
       target_table: 'partners',
@@ -267,6 +295,7 @@ async function main() {
     
     // 2. Prüfen welche Kundennummern schon bei uns existieren
     console.log('🔍 Schritt 2: Prüfe existierende Kunden...');
+    const existingIds = new Set();
     const existingNumbers = new Set();
     let dbOffset = 0;
     const dbLimit = 1000;
@@ -274,12 +303,13 @@ async function main() {
     while (true) {
       const existing = await supabaseQuery(
         'partners',
-        `select=easybill_customer_number&limit=${dbLimit}&offset=${dbOffset}`
+        `select=easybill_id,easybill_customer_number&limit=${dbLimit}&offset=${dbOffset}`
       );
       
       if (!existing || existing.length === 0) break;
       
       existing.forEach((p: any) => {
+        if (p.easybill_id) existingIds.add(String(p.easybill_id));
         if (p.easybill_customer_number) existingNumbers.add(p.easybill_customer_number);
       });
       
@@ -287,16 +317,21 @@ async function main() {
       dbOffset += dbLimit;
     }
     
-    console.log(`✅ ${existingNumbers.size} Kunden existieren bereits in der DB\n`);
+    console.log(`✅ ${existingIds.size} easybill_ids in DB`);
+    console.log(`✅ ${existingNumbers.size} customer_numbers in DB\n`);
     
     // 3. Fehlende Kunden filtern
-    const missingCustomers = easybillCustomers.filter(
-      (c: any) => !existingNumbers.has(c.number)
-    );
+    const missingCustomers = easybillCustomers.filter((c: any) => {
+      // Prüfe easybill_id
+      if (existingIds.has(String(c.id))) return false;
+      // Prüfe customer_number (nur wenn nicht leer)
+      if (c.number && c.number.trim() && existingNumbers.has(c.number)) return false;
+      return true;
+    });
     
     console.log(`📊 Ergebnis:`);
     console.log(`   Easybill Total: ${easybillCustomers.length}`);
-    console.log(`   Bereits in DB:  ${existingNumbers.size}`);
+    console.log(`   Bereits in DB:  ${easybillCustomers.length - missingCustomers.length}`);
     console.log(`   Fehlend:        ${missingCustomers.length}\n`);
     
     if (missingCustomers.length === 0) {
@@ -309,16 +344,20 @@ async function main() {
     let successCount = 0;
     let errorCount = 0;
     let warningCount = 0;
+    let skippedCount = 0;
     
     for (let i = 0; i < missingCustomers.length; i++) {
       const customer = missingCustomers[i];
       const displayName = normalizeDisplayName(customer);
       
-      console.log(`   [${i + 1}/${missingCustomers.length}] ${displayName} (${customer.number})`);
+      console.log(`   [${i + 1}/${missingCustomers.length}] ${displayName} (ID: ${customer.id})`);
       
       const result = await syncCustomer(customer);
       
-      if (result.success && result.errors.length === 0) {
+      if (result.skipped) {
+        skippedCount++;
+        console.log(`      ⏭️  Übersprungen: ${result.reason}`);
+      } else if (result.success && result.errors.length === 0) {
         successCount++;
         console.log(`      ✅ Erfolgreich importiert`);
       } else if (result.success && result.errors.length > 0) {
@@ -340,6 +379,7 @@ async function main() {
     console.log(`Dauer:              ${duration}s`);
     console.log(`Erfolgreich:        ${successCount}`);
     console.log(`Mit Warnungen:      ${warningCount}`);
+    console.log(`Übersprungen:       ${skippedCount}`);
     console.log(`Fehler:             ${errorCount}`);
     console.log(`Gesamt:             ${missingCustomers.length}`);
     console.log('='.repeat(60));
