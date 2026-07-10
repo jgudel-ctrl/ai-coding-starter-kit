@@ -1,534 +1,286 @@
-# PROJ-24: Architektur — Easybill Partner-Sync via Webhook
+# PROJ-24: Architektur — Easybill Partner-Sync
 
-> Status: 🟡 In Review  
-> Letzte Änderung: 2026-07-09  
-> Verantwortlich: Jan Bernd Gudel / Klausi
+> Status: 🟠 In Review | 2026-07-10 08:45 UTC  
+> Verantwortlich: Klausi  
+> Basis: PROJ-24 Spec (approved)
 
 ---
 
 ## Übersicht
 
-**Was wir bauen:**
-Einen bidirektionalen Sync zwischen Easybill (externes Rechnungs-System) und unserem TMS (Superbays). Easybill ruft uns via Webhook an wenn sich ein Kunde ändert. Wir verarbeiten das und aktualisieren unsere Datenbank.
+Dieses Dokument beschreibt die technische Architektur für den Easybill Partner-Sync.
 
-**Architektur-Prinzipien:**
-- **Idempotent:** Gleicher Webhook mehrfach = kein Schaden
-- **Soft-Delete:** Nie physisch löschen, nur deaktivieren
-- **Audit-Trail:** Jeder Sync wird geloggt
-- **Fallback:** Webhook + Cronjob = doppelte Sicherheit
+**Was gebaut wird:**
+1. Initial-Import der 67 fehlenden Kunden aus Easybill
+2. Stündlicher Fallback-Cronjob
+3. Geoapify-Adressvalidierung
 
----
-
-## Technischer Stack
-
-| Komponente | Technologie | Warum |
-|------------|-------------|-------|
-| **Frontend** | Next.js 14 (App Router) | Server Actions, API Routes |
-| **Backend** | Next.js API Routes | Webhook-Handler |
-| **Datenbank** | PostgreSQL (Supabase) | Relationale Daten, JSONB für Rohdaten |
-| **ORM/Client** | Supabase JS Client | Service-Role für Admin/Sync |
-| **Scheduler** | OpenClaw Cron | Stündlicher Fallback-Cronjob |
-| **Adress-Validierung** | Geoapify API | Free-Tier, 3.000 Credits/Tag |
-| **Externe API** | Easybill REST API | Kunden, Adressen, Rabatte |
+**Wichtige Entscheidungen:**
+- Admin-Client mit Service-Role-Key (umgeht RLS)
+- Schema `tms` für alle DB-Operationen
+- Voll-Replace bei Adressen/Kontakten (nicht Delta-Sync)
+- Dubletten-Prüfung nach jedem Import
 
 ---
 
-## Datenbank-Schema (Migrationen)
+## Technische Komponenten
 
-### Neue Tabellen
+### 1. Initial-Import Script
 
-#### 1. `partner_discounts`
-
-```sql
-CREATE TABLE tms.partner_discounts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  partner_id UUID NOT NULL REFERENCES tms.partners(id) ON DELETE CASCADE,
-  easybill_discount_id BIGINT,
-  position_group_id BIGINT NOT NULL,
-  position_group_name TEXT,
-  position_group_number TEXT,
-  discount_percent NUMERIC(5,2),
-  discount_type TEXT DEFAULT 'PERCENT', -- 'PERCENT' oder 'AMOUNT'
-  raw_easybill_payload JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  UNIQUE(partner_id, position_group_id)
-);
-
-CREATE INDEX idx_partner_discounts_partner ON tms.partner_discounts(partner_id);
-CREATE INDEX idx_partner_discounts_group ON tms.partner_discounts(position_group_id);
-```
-
-#### 2. `position_groups`
-
-```sql
-CREATE TABLE tms.position_groups (
-  id BIGINT PRIMARY KEY, -- Easybill ID als PK
-  name TEXT,
-  display_name TEXT,
-  number TEXT,
-  description TEXT,
-  raw_easybill_payload JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_position_groups_number ON tms.position_groups(number);
-```
-
-#### 3. `customer_groups`
-
-```sql
-CREATE TABLE tms.customer_groups (
-  id BIGINT PRIMARY KEY, -- Easybill ID als PK
-  name TEXT,
-  display_name TEXT,
-  number TEXT,
-  description TEXT,
-  raw_easybill_payload JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_customer_groups_number ON tms.customer_groups(number);
-```
-
-### Erweiterungen bestehender Tabellen
-
-#### `tms.partners`
-
-```sql
--- Neue Felder für Dubletten-Erkennung
-ALTER TABLE tms.partners 
-ADD COLUMN duplicate_of UUID REFERENCES tms.partners(id),
-ADD COLUMN duplicate_reason TEXT;
-
--- Index für Dubletten-Suche
-CREATE INDEX idx_partners_duplicate ON tms.partners(duplicate_of) WHERE duplicate_of IS NOT NULL;
-```
-
-#### `partner_addresses`
-
-```sql
--- Soft-Delete Felder (falls nicht vorhanden)
-ALTER TABLE tms.partner_addresses 
-ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
-ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-
--- Constraint: Nur eine aktive Rechnungsadresse pro Partner
--- Wird in Application-Logik umgesetzt, nicht DB-Constraint (wegen Flexibilität)
-```
-
-#### `partner_contacts`
-
-```sql
--- Soft-Delete Felder (falls nicht vorhanden)
-ALTER TABLE tms.partner_contacts 
-ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
-ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-```
-
----
-
-## API-Endpunkte
-
-### 1. Webhook-Endpoint (Empfang)
-
-**Route:** `POST /api/webhooks/easybill/customer`  
-**Body:** JSON (Easybill Customer Payload)  
-**Headers:**
-- `Authorization: Bearer {WEBHOOK_SECRET}`
-- `X-Easybill-Event: customer.created | customer.updated`
+**Datei:** `scripts/import-easybill-partners.ts`
 
 **Ablauf:**
 ```
-1. Authentifizierung prüfen (Webhook-Secret)
-2. Event-Type bestimmen (created vs updated)
-3. JSON Body parsen
-4. Sync-Funktion aufrufen
-5. Ergebnis loggen
-6. HTTP 200 zurückgeben (sonst retried Easybill)
+1. Alle aktiven Easybill-Kunden abrufen (GET /customers)
+   → Paginierung: 1000 pro Request
+2. Für jeden Kunden:
+   a) Prüfen: Existiert easybill_customer_number in DB?
+   b) Falls NEIN → syncEasybillCustomer() aufrufen
+   c) Fehler loggen
+3. Ergebnis zusammenfassen
 ```
 
-**Fehlerbehandlung:**
-- HTTP 200 = Alles OK (auch wenn nichts geändert)
-- HTTP 400 = Bad Request (ungültiges JSON)
-- HTTP 401 = Unauthorized (falscher Secret)
-- HTTP 500 = Server Error → Easybill retried später
+**Easybill API:**
+- Endpoint: `GET https://api.easybill.de/rest/v1/customers`
+- Header: `Authorization: Bearer {EASYBILL_API_KEY}`
+- Paginierung: `?page=1&limit=1000`
 
-### 2. Sync-Funktion (Intern)
+**Datenbank-Operationen (Admin-Client):**
+- Schema: `tms`
+- Tabellen: `partners`, `partner_addresses`, `partner_contacts`, `partner_billing_settings`
+- Dubletten-Prüfung nach jedem Insert
 
-**Funktion:** `syncEasybillCustomer(easybillCustomer: EasybillCustomer)`  
-**Rückgabe:** `{ success: boolean, partnerId?: UUID, actions: string[], errors?: string[] }`
+### 2. Cronjob (Fallback)
 
-**Schritte:**
+**Datei:** `scripts/cron-easybill-sync.ts`
+
+**Trigger:** Stündlich (z.B. :05 nach jeder Stunde)
+
+**Ablauf:**
 ```
-1. easybill_customer_number extrahieren
-2. Prüfen: Existiert Partner schon?
-   - JA → updatePartner()
-   - NEIN → createPartner()
-3. Adressen synchronisieren
-4. Kontakte synchronisieren
-5. Billing-Einstellungen synchronisieren
-6. Rabatte synchronisieren
-7. Nach-Sync: Rechnungen verknüpfen
-8. Dubletten-Prüfung (nur bei NEU)
-9. Ergebnis loggen
-```
-
-### 3. Cronjob-Endpoint (Auslösung)
-
-**Route:** `GET /api/cron/sync-easybill-customers` (oder interner Handler)  
-**Trigger:** Stündlich via OpenClaw Cron  
-**Logik:**
-```
-1. Letzten Sync-Zeitpunkt aus easybill_sync_logs holen
-2. Easybill API: Alle Kunden seit diesem Zeitpunkt abrufen
-3. Für jeden Kunden: syncEasybillCustomer() aufrufen
+1. Letzte Sync-Zeit aus easybill_sync_logs holen
+2. Easybill-Kunden abrufen, die seitdem geändert wurden
+   → Filter: ?updated_at[gte]={lastSync}
+3. Gleiche Sync-Logik wie Initial-Import
 4. Ergebnis loggen
 ```
 
+**Logging:**
+- Tabelle: `easybill_sync_logs`
+- Felder: partner_id, action, status, error, created_at
+
+### 3. Geoapify-Adressvalidierung
+
+**Datei:** `src/lib/geoapify/validate-address.ts`
+
+**API:**
+- Endpoint: `GET https://api.geoapify.com/v1/geocode/search`
+- Parameter: `?text={address}&apiKey=***}`
+- Free-Tier: 3.000 Credits/Tag
+
+**Ablauf:**
+```
+1. Nach Adress-Sync: Adresse zusammensetzen
+   → "{street} {number}, {postal_code} {city}"
+2. An Geoapify senden
+3. Ergebnis in partner_addresses speichern (Original bleibt erhalten):
+   - geoapify_validation_status: 'valid' | 'invalid' | 'error'
+   - geoapify_lat: Latitude
+   - geoapify_lon: Longitude
+   - geoapify_formatted: Korrigierte Adresse (nur als Hinweis)
+```
+
+**Wichtig:** Original-Adresse wird NICHT überschrieben. Geoapify-Daten sind nur ergänzende Information.
+
+**Rate Limiting:**
+- Max. 5 Requests/Sekunde
+- Wir machen 1 Request pro Adresse (seriell)
+
 ---
 
-## Sync-Logik im Detail
+## Datenfluss
 
-### createPartner() — Neuer Kunde
-
-```typescript
-async function createPartner(easybillCustomer: EasybillCustomer): Promise<SyncResult> {
-  // 1. Prüfen: Existiert schon? (Race Condition)
-  const existing = await findPartnerByEasybillNumber(easybillCustomer.number);
-  if (existing) {
-    return updatePartner(easybillCustomer);
-  }
-  
-  // 2. Display Name generieren (Regel Ü1)
-  const displayName = easybillCustomer.company_name 
-    || `${easybillCustomer.first_name} ${easybillCustomer.last_name}`
-    || 'Unbekannt';
-  
-  // 3. Partner anlegen
-  const partner = await supabase
-    .from('partners')
-    .insert({
-      easybill_id: easybillCustomer.id,
-      easybill_customer_number: easybillCustomer.number,
-      partner_type: 'customer',
-      entity_type: easybillCustomer.company_name ? 'company' : 'person',
-      company_name: easybillCustomer.company_name,
-      first_name: easybillCustomer.first_name,
-      last_name: easybillCustomer.last_name,
-      display_name: displayName,
-      email: easybillCustomer.emails?.[0]?.email,
-      phone: easybillCustomer.phone,
-      mobile: easybillCustomer.mobile,
-      vat_identifier: easybillCustomer.vat_identifier,
-      tax_number: easybillCustomer.tax_number,
-      easybill_group_id: easybillCustomer.group_id,
-      is_active: !easybillCustomer.archived, // Regel Ü2
-      source_system: 'easybill',
-      raw_easybill_payload: easybillCustomer,
-      easybill_created_at: easybillCustomer.created_at,
-      easybill_updated_at: easybillCustomer.updated_at,
-    })
-    .select()
-    .single();
-  
-  // 4. Adressen synchronisieren
-  await syncAddresses(partner.id, easybillCustomer);
-  
-  // 5. Kontakte synchronisieren
-  await syncContacts(partner.id, easybillCustomer);
-  
-  // 6. Billing synchronisieren
-  await syncBillingSettings(partner.id, easybillCustomer);
-  
-  // 7. Rabatte synchronisieren
-  await syncDiscounts(partner.id, easybillCustomer.id);
-  
-  // 8. Nach-Sync: Rechnungen verknüpfen
-  await linkOrphanedInvoices(partner.id, easybillCustomer.number);
-  
-  // 9. Dubletten-Prüfung (Regel Ü3)
-  await checkForDuplicates(partner.id);
-  
-  return { success: true, partnerId: partner.id, actions: ['created'] };
-}
 ```
-
-### syncAddresses() — Adressen
-
-```typescript
-async function syncAddresses(partnerId: UUID, customer: EasybillCustomer) {
-  // 1. Rechnungsadresse anlegen
-  const billingAddress = customer.address;
-  await supabase.from('partner_addresses').insert({
-    partner_id: partnerId,
-    address_type: 'billing',
-    is_primary: true,
-    company_name: billingAddress.company_name,
-    first_name: billingAddress.first_name,
-    last_name: billingAddress.last_name,
-    street: `${billingAddress.street} ${billingAddress.number}`,
-    postal_code: billingAddress.zip_code,
-    city: billingAddress.city,
-    country: billingAddress.country,
-    raw_easybill_payload: billingAddress,
-  });
-  
-  // 2. Lieferadresse prüfen
-  const shippingAddress = customer.delivery_address || billingAddress;
-  await supabase.from('partner_addresses').insert({
-    partner_id: partnerId,
-    address_type: 'shipping',
-    is_primary: false,
-    // ... gleiche Felder wie Rechnungsadresse
-  });
-  
-  // 3. Geoapify-Validierung (nur Lieferadresse)
-  await validateAddressWithGeoapify(shippingAddress);
-}
-```
-
-### syncDiscounts() — Rabatte
-
-```typescript
-async function syncDiscounts(partnerId: UUID, easybillCustomerId: number) {
-  // 1. Produktgruppen aktualisieren (Referenz)
-  const positionGroups = await easybillApi.getPositionGroups();
-  for (const group of positionGroups) {
-    await supabase.from('position_groups').upsert({
-      id: group.id,
-      name: group.name,
-      display_name: group.display_name,
-      number: group.number,
-      description: group.description,
-      raw_easybill_payload: group,
-      updated_at: new Date(),
-    });
-  }
-  
-  // 2. Kundengruppen aktualisieren (Referenz)
-  const customerGroups = await easybillApi.getCustomerGroups();
-  // ... gleiche Logik
-  
-  // 3. Alte Rabatte löschen (Voll-Replace)
-  await supabase.from('partner_discounts')
-    .delete()
-    .eq('partner_id', partnerId);
-  
-  // 4. Neue Rabatte importieren
-  const discounts = await easybillApi.getDiscounts({ customer_id: easybillCustomerId });
-  for (const discount of discounts) {
-    const group = positionGroups.find(g => g.id === discount.position_group_id);
-    await supabase.from('partner_discounts').insert({
-      partner_id: partnerId,
-      easybill_discount_id: discount.id,
-      position_group_id: discount.position_group_id,
-      position_group_name: group?.name,
-      position_group_number: group?.number,
-      discount_percent: discount.discount,
-      discount_type: discount.discount_type,
-      raw_easybill_payload: discount,
-    });
-  }
-}
-```
-
-### checkForDuplicates() — Dubletten-Prüfung
-
-```typescript
-async function checkForDuplicates(partnerId: UUID) {
-  const partner = await getPartner(partnerId);
-  
-  // 1. Suche nach gleichem Namen
-  const candidates = await supabase
-    .from('partners')
-    .select('id, display_name, easybill_customer_number')
-    .or(`display_name.eq.${partner.display_name},company_name.eq.${partner.company_name}`)
-    .neq('id', partnerId)
-    .is('duplicate_of', null); // Nur aktive Dubletten
-  
-  // 2. Für jeden Kandidaten: Adressen vergleichen
-  for (const candidate of candidates) {
-    const sameBilling = await compareBillingAddress(partnerId, candidate.id);
-    const sameShipping = await compareShippingAddress(partnerId, candidate.id);
-    
-    if (sameBilling || sameShipping) {
-      // 3. Umsatz vergleichen
-      const partnerRevenue = await getPartnerRevenue(partnerId);
-      const candidateRevenue = await getPartnerRevenue(candidate.id);
-      
-      // 4. Weniger Umsatz = Dublette
-      const [main, duplicate] = partnerRevenue >= candidateRevenue 
-        ? [partner, candidate] 
-        : [candidate, partner];
-      
-      await supabase.from('partners').update({
-        is_active: false,
-        duplicate_of: main.id,
-        duplicate_reason: `Auto-detected: Same name/address. Revenue: ${partnerRevenue} vs ${candidateRevenue}`,
-      }).eq('id', duplicate.id);
-    }
-  }
-}
+Easybill API
+    ↓ (HTTP GET)
+Import-Script / Cronjob
+    ↓
+syncEasybillCustomer()
+    ↓
+Supabase Admin-Client (Schema: tms)
+    ↓
+partners (INSERT/UPDATE)
+    ↓
+partner_addresses (INSERT)
+    ↓
+partner_contacts (INSERT)
+    ↓
+partner_billing_settings (INSERT)
+    ↓
+checkForDuplicates()
+    ↓
+partner_addresses (Geoapify UPDATE)
+    ↓
+easybill_sync_logs (INSERT)
 ```
 
 ---
 
-## Cronjob-Konfiguration
+## Datenbank-Schema (wichtige Felder)
 
-### Stündlicher Fallback-Cronjob
+### partners
+- id: UUID (PK)
+- easybill_id: BIGINT
+- easybill_customer_number: TEXT (UNIQUE)
+- company_name: TEXT
+- first_name: TEXT
+- last_name: TEXT
+- display_name: TEXT
+- email: TEXT
+- phone: TEXT
+- mobile: TEXT
+- vat_identifier: TEXT
+- tax_number: TEXT
+- easybill_group_id: BIGINT
+- is_active: BOOLEAN
+- is_archived: BOOLEAN
+- duplicate_of: UUID → partners.id
+- duplicate_reason: TEXT
+- source_system: TEXT
+- raw_easybill_payload: JSONB
+- easybill_created_at: TIMESTAMPTZ
+- easybill_updated_at: TIMESTAMPTZ
 
-```json
-{
-  "name": "Easybill Partner Sync Fallback",
-  "schedule": { "kind": "cron", "expr": "0 * * * *" },
-  "payload": {
-    "kind": "systemEvent",
-    "text": "Easybill Partner Sync: Stündlicher Fallback-Cronjob. Holt alle Kunden seit letztem Lauf."
-  },
-  "sessionTarget": "main"
-}
-```
+### partner_addresses
+- id: UUID (PK)
+- partner_id: UUID → partners.id
+- address_type: TEXT ('billing' | 'shipping')
+- company_name: TEXT
+- first_name: TEXT
+- last_name: TEXT
+- street: TEXT
+- postal_code: TEXT
+- city: TEXT
+- country: TEXT
+- is_primary: BOOLEAN
+- is_active: BOOLEAN
+- geoapify_validation_status: TEXT
+- geoapify_lat: NUMERIC
+- geoapify_lon: NUMERIC
+- geoapify_formatted: TEXT
+- raw_easybill_payload: JSONB
 
-**Logik:**
-```
-1. Letzten Sync-Zeitpunkt aus easybill_sync_logs holen
-   (MAX(synced_at) WHERE sync_type = 'customer')
-   
-2. Falls kein letzter Sync: 24h zurück
+### partner_contacts
+- id: UUID (PK)
+- partner_id: UUID → partners.id
+- first_name: TEXT
+- last_name: TEXT
+- display_name: TEXT
+- email: TEXT
+- phone: TEXT
+- mobile: TEXT
+- is_primary: BOOLEAN
+- is_invoice_recipient: BOOLEAN
+- is_active: BOOLEAN
 
-3. Easybill API abfragen:
-   GET /customers?updated_at_min={lastSyncTime}
-   
-4. Für jeden Kunden:
-   - syncEasybillCustomer() aufrufen
-   - Ergebnis in easybill_sync_logs eintragen
-   
-5. Zusammenfassung loggen:
-   "Sync abgeschlossen: 5 neue, 3 aktualisiert, 0 Fehler"
-```
+### partner_billing_settings
+- id: UUID (PK)
+- partner_id: UUID → partners.id
+- payment_terms_days: INTEGER
+- cash_discount_percent: NUMERIC
+- cash_discount_days: INTEGER
+- sepa_mandate_reference: TEXT
+- sepa_mandate_date: DATE
+- iban_last4: TEXT
+- bic: TEXT
+- default_invoice_email: TEXT
+- buyer_reference: TEXT
+- vat_identifier: TEXT
+- tax_number: TEXT
+- raw_easybill_payload: JSONB
+
+### easybill_sync_logs
+- id: UUID (PK)
+- partner_id: UUID → partners.id
+- easybill_customer_id: BIGINT
+- action: TEXT ('create' | 'update' | 'import')
+- status: TEXT ('success' | 'error' | 'skipped')
+- message: TEXT
+- error_details: TEXT
+- created_at: TIMESTAMPTZ
 
 ---
 
-## Fehlerbehandlung & Logging
+## Fehlerbehandlung
 
-### easybill_sync_logs (Erweitert)
+### Wenn Easybill API nicht erreichbar
+- Retry: 3x mit Exponential Backoff (1s, 2s, 4s)
+- Falls weiterhin fehlgeschlagen: Fehler loggen, nächsten Kunden verarbeiten
 
-```sql
-ALTER TABLE tms.easybill_sync_logs 
-ADD COLUMN IF NOT EXISTS sync_type TEXT DEFAULT 'customer', -- 'customer', 'invoice', 'discount'
-ADD COLUMN IF NOT EXISTS entity_type TEXT, -- 'partner', 'address', 'contact'
-ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0;
-```
+### Wenn Adresse ungültig (Geoapify)
+- Status: 'invalid'
+- Kein Fehler — Kunde wird trotzdem importiert
+- Adresse wird markiert für manuelle Prüfung
 
-**Log-Einträge:**
+### Wenn Dublette erkannt
+- Weniger umsatzstarker Partner: is_active = false
+- Beide Partner bleiben in DB
+- Admin kann später manuell prüfen
 
-| sync_type | easybill_id | partner_id | status | details |
-|-----------|-------------|------------|--------|---------|
-| customer | 687795862 | abc-123 | success | created, addresses: 2, contacts: 1 |
-| customer | 687795862 | abc-123 | success | updated, discounts: 5 |
-| customer | 999999999 | null | error | No email found for contact |
-| customer | 888888888 | def-456 | warning | duplicate_detected, deactivated |
-
-### Retry-Logik
-
-```
-- Fehler → retry_count + 1
-- Max. 3 Retries
-- Bei Erfolg: retry_count = 0
-- Bei max. Retries erreicht: Status = 'failed', Admin-Benachrichtigung
-```
-
----
-
-## Testplan
-
-### Unit Tests
-
-| Test | Erwartetes Ergebnis |
-|------|-------------------|
-| `display_name` mit Firmenname | "Musterfirma GmbH" |
-| `display_name` ohne Firma | "Max Mustermann" |
-| Dublette gleicher Name + Adresse | Umsatzschwächerer Partner deaktiviert |
-| Keine Lieferadresse in Easybill | Rechnungsadresse wird kopiert |
-| Kein Kontakt mit E-Mail | Kunde wird abgelehnt |
-| Archivierter Easybill-Kunde | `is_active = false` |
-
-### Integration Tests
-
-| Test | Erwartetes Ergebnis |
-|------|-------------------|
-| Webhook `customer.created` | Partner + Adressen + Kontakte in DB |
-| Webhook `customer.updated` | Bestehende Daten aktualisiert |
-| Geoapify ungültige Adresse | `geoapify_validation_status = 'invalid'` |
-| Cronjob stündlich | Nur geänderte Kunden seit letztem Lauf |
-| Nach-Sync Rechnungen | `partner_id` wird nachgetragen |
-
-### End-to-End Test
-
-1. **Neuen Kunden in Easybill anlegen**
-2. **Webhook empfangen** → Partner in DB prüfen
-3. **Adressen prüfen** → Geoapify-Validierung OK?
-4. **Kontakt prüfen** → E-Mail vorhanden?
-5. **Rabatte prüfen** → Produktgruppen korrekt?
-6. **Rechnung anlegen** in Easybill
-7. **Rechnungssync** → `partner_id` verknüpft?
+### Wenn Keine E-Mail vorhanden
+- Kunde wird abgelehnt
+- Fehler wird in easybill_sync_logs geloggt
+- Admin muss manuell nacharbeiten
 
 ---
 
 ## Sicherheit
 
-### Webhook-Authentifizierung
-
-```
-1. Header "Authorization: Bearer {WEBHOOK_SECRET}" prüfen
-2. WEBHOOK_SECRET = Umgebungsvariable (nicht im Code)
-3. Falsches Secret → HTTP 401
-4. Kein Secret → HTTP 401
-```
-
-### IP-Whitelist (Optional)
-
-Easybill sendet Webhooks von festen IPs. Wir können diese whitelisten:
-- Prüfen: `X-Forwarded-For` oder `remoteAddress`
-- Falls nicht von Easybill-IP → HTTP 403
-
-### HTTPS Erzwungen
-
-- Webhook-Endpoint nur via HTTPS erreichbar
-- HTTP-Requests werden auf HTTPS umgeleitet
+- Supabase Service-Role-Key (umgeht RLS)
+- HTTPS für alle API-Calls
+- Easybill API-Key aus .env.production
+- Keine Credentials im Code
 
 ---
 
-## Deployment-Plan
+## Performance-Schätzungen
 
-1. **Migrationen ausführen** (neue Tabellen + Felder)
-2. **Geoapify API-Key** in `.env.production` eintragen
-3. **Webhook-Secret** generieren und in `.env.production` eintragen
-4. **Cronjob** registrieren (OpenClaw)
-5. **Easybill Webhook** in Easybill-UI konfigurieren
-6. **Test:** Einen Kunden in Easybill anlegen → TMS prüfen
+### Initial-Import (67 Kunden)
+- Easybill API: 1 Request (67 Kunden passen in 1 Page)
+- Supabase INSERTs: ~67 × 4 Tabellen = ~268 INSERTs
+- Geoapify: ~134 Adressen × 1 Request = ~134 Requests
+- **Gesamtzeit:** ~2–3 Minuten
 
----
-
-## Offene Punkte
-
-| # | Punkt | Status |
-|---|-------|--------|
-| 1 | Easybill Webhook-Secret generieren | ❌ Offen |
-| 2 | Webhook-URL in Easybill konfigurieren | ❌ Offen |
-| 3 | Initialer Import der 67 fehlenden Kunden | ❌ Offen |
+### Cronjob (stündlich)
+- Nur geänderte Kunden (typisch 0–5 pro Stunde)
+- **Gesamtzeit:** < 10 Sekunden
 
 ---
 
-## Nächste Schritte
+## Testplan
 
-1. **Jan Bernd:** Architektur review + "approved"
-2. **Klausi:** Tabellen anlegen (Migrationen)
-3. **Klausi:** Webhook-Endpoint implementieren
-4. **Klausi:** Sync-Logik implementieren
-5. **Klausi:** Cronjob einrichten
-6. **Gemeinsam:** Easybill Webhook konfigurieren + Testen
+1. **Test mit 1 Kunde:**
+   - Script auf 1 Kunde limitieren
+   - Prüfen: Partner + Adressen + Kontakte vorhanden?
+   - Dublette-Prüfung läuft?
+   - Geoapify-Ergebnis vorhanden?
+
+2. **Test mit allen 67:**
+   - Vollständiger Import
+   - Ergebnis: Wie viele erfolgreich, Fehler, Dubletten?
+
+3. **Cronjob-Test:**
+   - Manuell ausführen
+   - Prüfen: Nur geänderte Kunden werden verarbeitet?
+
+---
+
+## Entscheidungen (beantwortet)
+
+- [x] Geoapify: Original-Adresse bleibt erhalten (nur Hinweis)
+- [x] Dubletten: Nicht im Admin-Bereich sichtbar (nur über Toggle "Alle")
+- [x] Initial-Import: Jetzt starten
+
+---
+
+*Erstellt: 2026-07-10 08:45 UTC | Aktualisiert: 2026-07-10 09:00 UTC*
