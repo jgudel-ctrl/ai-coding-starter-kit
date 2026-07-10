@@ -68,17 +68,21 @@ export type PartnerWithRevenue = Partner & {
  */
 export async function getPartnersWithRevenue(
   search?: string,
+  showInactive?: boolean,
 ): Promise<{ ok: true; data: PartnerWithRevenue[] } | { ok: false; error: string }> {
   const supabase = await createClient();
   const currentYear = new Date().getFullYear();
 
-  // 1. Alle aktiven Kunden laden (mit Paginierung, da Supabase nur 1000/Zeile liefert)
+  // 1. Alle Kunden laden (mit Paginierung, da Supabase nur 1000/Zeile liefert)
   let query = supabase
     .schema("tms")
     .from("partners")
-    .select("*")
-    .eq("is_active", true)
-    .eq("is_archived", false);
+    .select("*");
+
+  // Standard: nur aktive Kunden. Wenn Toggle an → alle anzeigen
+  if (!showInactive) {
+    query = query.eq("is_active", true).eq("is_archived", false);
+  }
 
   if (search) {
     const isNumeric = /^\d+$/.test(search);

@@ -1,12 +1,23 @@
+// 🔍 Initial Dubletten-Check: Alle aktiven Partner
+// → Namen: lowercase + zusammengeschrieben (keine Leerzeichen, Kommas, etc.)
+// → Adressen: Straße + PLZ normalisiert
+// → Revenue: amount_net (Cent → Euro)
+
+const fs = require('fs');
+
+// Supabase-Key aus .env.production lesen
+const envContent = fs.readFileSync('/home/botti/.openclaw/workspace/.env.production', 'utf8');
 const SUPABASE_URL = 'https://supabase.gudel-werkzeuge.de';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3Nzg2ODEwMTYsImV4cCI6MTkzNjM2MTAxNn0.OKObADZ0LYZS9dKS4El1ShwbBA6-BQH1a4hHKB9F5-M';
+// Service-Role-Key (volle Rechte auf alle Tabellen)
+const SUPABASE_KEY = envContent.match(/SUPABASE_SERVICE_ROLE_KEY=(.+)/)?.[1]?.trim();
+if (!SUPABASE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY nicht gefunden in .env.production');
 
 async function supabaseQuery(table, query = '') {
   const url = `${SUPABASE_URL}/rest/v1/${table}?${query}`;
   const res = await fetch(url, {
     headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
   });
-  if (!res.ok) throw new Error(`${table} query failed: ${res.status}`);
+  if (!res.ok) throw new Error(`${table} query failed: ${res.status} ${await res.text()}`);
   return res.json();
 }
 
@@ -19,107 +30,170 @@ async function supabasePatch(table, id, data) {
     },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error(`${table} patch failed: ${res.status}`);
+  if (!res.ok) throw new Error(`${table} patch failed: ${res.status} ${await res.text()}`);
   return true;
 }
 
-async function getAllPartners() {
+// Alles auf einmal laden (Pagination)
+async function fetchAll(table, queryBase) {
   const all = [];
   let start = 0;
+  const LIMIT = 1000;
   while (true) {
-    const batch = await supabaseQuery('partners',
-      'is_active=eq.true&duplicate_of=is.null&select=id,display_name,company_name&order=created_at.asc',
-      start, start + 999);
+    const batch = await supabaseQuery(table, `${queryBase}&limit=${LIMIT}&offset=${start}`);
     if (!batch || batch.length === 0) break;
     all.push(...batch);
-    if (batch.length < 1000) break;
-    start += 1000;
+    if (batch.length < LIMIT) break;
+    start += LIMIT;
   }
   return all;
 }
 
-async function checkForDuplicates(partner) {
-  const addresses = await supabaseQuery(
-    'partner_addresses',
-    `partner_id=eq.${partner.id}&is_active=eq.true&select=address_type,street,postal_code,city`);
-  const billingAddr = addresses.find(a => a.address_type === 'billing');
-  const shippingAddr = addresses.find(a => a.address_type === 'shipping');
-  if (!billingAddr && !shippingAddr) return { checked: true, duplicates: 0 };
+// Name normalisieren: lowercase, nur Buchstaben/Zahlen, zusammengeschrieben
+function normalize(str) {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .replace(/[^a-zäöüß0-9]/gi, '')  // alles raus außer Buchstaben/Zahlen
+    .trim();
+}
 
-  const dn = encodeURIComponent(partner.display_name || '');
-  const cn = partner.company_name ? encodeURIComponent(partner.company_name) : null;
-  const nameQuery = cn ? `or=(display_name.eq.${dn},company_name.eq.${cn})` : `display_name=eq.${dn}`;
-
-  const candidates = await supabaseQuery('partners',
-    `${nameQuery}&id=neq.${partner.id}&duplicate_of=is.null&is_active=eq.true&select=id,display_name`);
-  if (!candidates?.length) return { checked: true, duplicates: 0 };
-
-  for (const candidate of candidates) {
-    const candAddr = await supabaseQuery('partner_addresses',
-      `partner_id=eq.${candidate.id}&is_active=eq.true&select=address_type,street,postal_code,city`);
-    const cb = candAddr.find(a => a.address_type === 'billing');
-    const cs = candAddr.find(a => a.address_type === 'shipping');
-
-    const sameB = billingAddr && cb && billingAddr.street === cb.street && billingAddr.postal_code === cb.postal_code;
-    const sameS = shippingAddr && cs && shippingAddr.street === cs.street && shippingAddr.postal_code === cs.postal_code;
-
-    if (sameB || sameS) {
-      const pInv = await supabaseQuery('invoices', `partner_id=eq.${partner.id}&status=eq.paid&select=total_net`);
-      const cInv = await supabaseQuery('invoices', `partner_id=eq.${candidate.id}&status=eq.paid&select=total_net`);
-      const pRev = (pInv || []).reduce((s, i) => s + (i.total_net || 0), 0);
-      const cRev = (cInv || []).reduce((s, i) => s + (i.total_net || 0), 0);
-
-      if (pRev <= cRev) {
-        await supabasePatch('partners', partner.id, {
-          is_active: false, duplicate_of: candidate.id,
-          duplicate_reason: `Auto: Same name/address. Revenue: ${pRev.toFixed(2)} vs ${cRev.toFixed(2)}`,
-        });
-        return { checked: true, duplicates: 1, deactivated: 'self' };
-      } else {
-        await supabasePatch('partners', candidate.id, {
-          is_active: false, duplicate_of: partner.id,
-          duplicate_reason: `Auto: Same name/address. Revenue: ${cRev.toFixed(2)} vs ${pRev.toFixed(2)}`,
-        });
-        return { checked: true, duplicates: 1, deactivated: 'candidate', candidateId: candidate.id };
-      }
-    }
-  }
-  return { checked: true, duplicates: 0 };
+// Adresse normalisieren
+function normalizeAddress(street, postalCode) {
+  const s = normalize(street || '');
+  const p = (postalCode || '').replace(/\D/g, ''); // nur Ziffern
+  return s + p;
 }
 
 async function main() {
-  console.log('🔍 Initial Dubletten-Check: Alle Partner...\n');
-  const start = Date.now();
-  
-  const partners = await getAllPartners();
-  console.log(`📊 ${partners.length} aktive Partner\n`);
+  console.log('🔍 Initial Dubletten-Check: Alle aktiven Partner...');
+  console.log('   → Namen: lowercase + zusammengeschrieben');
+  console.log('   → Adressen: Straße + PLZ normalisiert');
+  console.log('   → Revenue: amount_net (Cent → Euro)\n');
 
+  const start = Date.now();
+
+  // 1. Partner laden
+  console.log('📥 Lade Partner...');
+  const partners = await fetchAll('partners',
+    'is_active=eq.true&duplicate_of=is.null&select=id,display_name,company_name,created_at&order=created_at.asc');
+  console.log(`   ✅ ${partners.length} Partner\n`);
+
+  // 2. Adressen laden
+  console.log('📥 Lade Adressen...');
+  const addresses = await fetchAll('partner_addresses',
+    'is_active=eq.true&select=partner_id,address_type,street,postal_code,city');
+  console.log(`   ✅ ${addresses.length} Adressen\n`);
+
+  // 3. Rechnungen laden
+  console.log('📥 Lade Rechnungen (paid)...');
+  const invoices = await fetchAll('invoices',
+    'status=eq.paid&select=partner_id,amount_net');
+  console.log(`   ✅ ${invoices.length} Rechnungen\n`);
+
+  // 4. Revenue pro Partner summieren (Cent → Euro)
+  const revenue = {};
+  for (const inv of invoices) {
+    if (inv.partner_id) {
+      revenue[inv.partner_id] = (revenue[inv.partner_id] || 0) + (inv.amount_net || 0);
+    }
+  }
+
+  // 5. Adressen pro Partner indexieren
+  const partnerAddrs = {};
+  for (const addr of addresses) {
+    if (!partnerAddrs[addr.partner_id]) partnerAddrs[addr.partner_id] = [];
+    partnerAddrs[addr.partner_id].push(addr);
+  }
+
+  // 6. Partner nach normalisiertem Namen gruppieren
+  const byName = {};
+  for (const p of partners) {
+    const key = normalize(p.company_name || p.display_name || '');
+    if (!key) continue;
+    if (!byName[key]) byName[key] = [];
+    byName[key].push(p);
+  }
+
+  const multiNames = Object.entries(byName).filter(([_, g]) => g.length >= 2);
+  console.log(`📊 Eindeutige Namen: ${Object.keys(byName).length}`);
+  console.log(`📊 Namen mit ≥2 Partnern: ${multiNames.length} (potenzielle Dubletten)\n`);
+
+  // 7. Dubletten-Check
   let checked = 0, dupFound = 0, selfDeac = 0, candDeac = 0;
   const deacList = [];
 
-  for (let i = 0; i < partners.length; i++) {
-    try {
-      const r = await checkForDuplicates(partners[i]);
-      checked++;
-      if (r.duplicates > 0) {
-        dupFound++;
-        if (r.deactivated === 'self') { selfDeac++; console.log(`  ⚠️  ${partners[i].display_name} → SELBST deaktiviert`); }
-        else { candDeac++; deacList.push(`${partners[i].display_name} → Kandidat ${r.candidateId}`); console.log(`  ⚠️  ${partners[i].display_name} → Kandidat deaktiviert`); }
+  for (const [, group] of multiNames) {
+    // Alle Paare innerhalb der Gruppe vergleichen
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        checked++;
+        const p1 = group[i];
+        const p2 = group[j];
+
+        // Adressen holen
+        const a1 = partnerAddrs[p1.id] || [];
+        const a2 = partnerAddrs[p2.id] || [];
+
+        const b1 = a1.find(a => a.address_type === 'billing');
+        const s1 = a1.find(a => a.address_type === 'shipping');
+        const b2 = a2.find(a => a.address_type === 'billing');
+        const s2 = a2.find(a => a.address_type === 'shipping');
+
+        const b1Key = b1 ? normalizeAddress(b1.street, b1.postal_code) : null;
+        const s1Key = s1 ? normalizeAddress(s1.street, s1.postal_code) : null;
+        const b2Key = b2 ? normalizeAddress(b2.street, b2.postal_code) : null;
+        const s2Key = s2 ? normalizeAddress(s2.street, s2.postal_code) : null;
+
+        const sameB = b1Key && b2Key && b1Key === b2Key && b1Key !== '';
+        const sameS = s1Key && s2Key && s1Key === s2Key && s1Key !== '';
+
+        if (sameB || sameS) {
+          dupFound++;
+
+          // Revenue vergleichen (Cent → Euro)
+          const r1 = (revenue[p1.id] || 0) / 100;
+          const r2 = (revenue[p2.id] || 0) / 100;
+
+          if (r1 <= r2) {
+            await supabasePatch('partners', p1.id, {
+              is_active: false,
+              duplicate_of: p2.id,
+              duplicate_reason: `Auto: Same normalized name/address. Revenue: €${r1.toFixed(2)} vs €${r2.toFixed(2)}`,
+            });
+            selfDeac++;
+            deacList.push(`${p1.display_name} → ${p2.display_name} (€${r1.toFixed(2)} vs €${r2.toFixed(2)})`);
+            console.log(`  ⚠️  "${p1.display_name}" DEAKTIVIERT → "${p2.display_name}" (€${r1.toFixed(2)} vs €${r2.toFixed(2)})`);
+            // p1 ist jetzt inaktiv, nicht mehr mit anderen vergleichen
+            break;
+          } else {
+            await supabasePatch('partners', p2.id, {
+              is_active: false,
+              duplicate_of: p1.id,
+              duplicate_reason: `Auto: Same normalized name/address. Revenue: €${r2.toFixed(2)} vs €${r1.toFixed(2)}`,
+            });
+            candDeac++;
+            deacList.push(`${p2.display_name} → ${p1.display_name} (€${r2.toFixed(2)} vs €${r1.toFixed(2)})`);
+            console.log(`  ⚠️  "${p2.display_name}" DEAKTIVIERT → "${p1.display_name}" (€${r2.toFixed(2)} vs €${r1.toFixed(2)})`);
+          }
+        }
       }
-      if ((i + 1) % 100 === 0) console.log(`  ... ${i + 1}/${partners.length}`);
-    } catch (e) { console.error(`  ❌ ${partners[i].display_name}: ${e.message}`); }
+    }
   }
 
   const dur = ((Date.now() - start) / 1000).toFixed(1);
-  console.log('\n' + '='.repeat(50));
+  console.log('\n' + '='.repeat(55));
   console.log('📋 ERGEBNIS');
-  console.log(`Geprüft:              ${checked}/${partners.length}`);
+  console.log(`Verglichen:           ${checked} Paare`);
   console.log(`Dubletten gefunden:   ${dupFound}`);
   console.log(`- Selbst deaktiviert: ${selfDeac}`);
   console.log(`- Kandidat deaktiv.:  ${candDeac}`);
   console.log(`Dauer:                ${dur}s`);
-  if (deacList.length > 0) { console.log('\nDeaktivierte Kandidaten:'); deacList.forEach(d => console.log(`  - ${d}`)); }
-  console.log('='.repeat(50));
+  if (deacList.length > 0) {
+    console.log('\n📋 Deaktivierte Partner:');
+    deacList.forEach(d => console.log(`  • ${d}`));
+  }
+  console.log('='.repeat(55));
 }
 
 main().catch(e => { console.error('Fatal:', e); process.exit(1); });

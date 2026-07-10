@@ -17,8 +17,9 @@ export default async function KundenPage({
 }) {
   const params = await searchParams;
   const search = typeof params.search === "string" ? params.search : undefined;
+  const showInactive = params.showInactive === "true";
 
-  const result = await getPartnersWithRevenue(search);
+  const result = await getPartnersWithRevenue(search, showInactive);
 
   if (!result.ok) {
     return (
@@ -48,10 +49,12 @@ export default async function KundenPage({
         <div>
           <h1 className="text-2xl font-bold">Kunden</h1>
           <p className="text-muted-foreground text-sm">
-            Sortiert nach Jahresumsatz {currentYear}
+            {showInactive 
+              ? "Alle Kunden (inkl. inaktive)" 
+              : `Sortiert nach Jahresumsatz ${currentYear}`}
           </p>
         </div>
-        <KundenSearch initial={search} />
+        <KundenSearch initial={search} showInactive={showInactive} />
       </div>
 
       {/* Mobile: Karten-Layout */}
