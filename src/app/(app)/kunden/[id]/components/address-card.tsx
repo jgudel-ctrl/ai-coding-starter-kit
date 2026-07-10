@@ -9,11 +9,43 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Pencil } from "lucide-react";
+import { Pencil, AlertTriangle, CheckCircle, XCircle, MapPin } from "lucide-react";
 import { updatePartnerAddress } from "@/lib/actions/addresses";
+
+// Geoapify Status Badge (kleines Icon)
+function GeoapifyBadge({ status }: { status?: string | null }) {
+  if (!status || status === 'valid') return null;
+  
+  if (status === 'suggestion') {
+    return (
+      <span title="Adresse prüfen: Vorschlag verfügbar" className="cursor-help">
+        🟡
+      </span>
+    );
+  }
+  
+  if (status === 'invalid') {
+    return (
+      <span title="Adresse nicht gefunden" className="cursor-help">
+        🔴
+      </span>
+    );
+  }
+  
+  if (status === 'error') {
+    return (
+      <span title="Validierungsfehler" className="cursor-help">
+        ⚪
+      </span>
+    );
+  }
+  
+  return null;
+}
 
 interface Address {
   id: string;
@@ -26,6 +58,13 @@ interface Address {
   city: string | null;
   state: string | null;
   country: string | null;
+  geoapify_status?: string | null;
+  geoapify_confidence?: number | null;
+  geoapify_suggested_street?: string | null;
+  geoapify_suggested_postal_code?: string | null;
+  geoapify_suggested_city?: string | null;
+  geoapify_suggested_country?: string | null;
+  geoapify_validated_at?: string | null;
 }
 
 interface AddressCardProps {
@@ -36,6 +75,7 @@ interface AddressCardProps {
 export function AddressCard({ title, address }: AddressCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSuggestion, setShowSuggestion] = useState(false);
   const [formData, setFormData] = useState({
     company_name: address?.company_name || "",
     first_name: address?.first_name || "",
@@ -94,13 +134,48 @@ export function AddressCard({ title, address }: AddressCardProps) {
             {(address.first_name || address.last_name) && (
               <p>{address.first_name} {address.last_name}</p>
             )}
-            {address.street && <p>{address.street}</p>}
+            {address.street && (
+              <div className="flex items-center gap-2">
+                <p>{address.street}</p>
+                <GeoapifyBadge status={address.geoapify_status} />
+              </div>
+            )}
             {address.additional_line && <p>{address.additional_line}</p>}
             {(address.postal_code || address.city) && (
               <p>{address.postal_code} {address.city}</p>
             )}
             {address.state && <p>{address.state}</p>}
             {address.country && <p>{address.country}</p>}
+            
+            {/* Geoapify Vorschlag anzeigen */}
+            {address.geoapify_status === 'suggestion' && (
+              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div className="flex items-center gap-2 text-xs text-yellow-800">
+                  <AlertTriangle className="h-3 w-3" />
+                  <span className="font-medium">Adresse prüfen</span>
+                </div>
+                <p className="text-xs text-yellow-700 mt-1">
+                  Vorschlag: {address.geoapify_suggested_street}, {address.geoapify_suggested_postal_code} {address.geoapify_suggested_city}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs mt-1 p-0 text-yellow-700 hover:text-yellow-900"
+                  onClick={() => setShowSuggestion(true)}
+                >
+                  Vergleich anzeigen →
+                </Button>
+              </div>
+            )}
+            
+            {address.geoapify_status === 'invalid' && (
+              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                <div className="flex items-center gap-2 text-xs text-red-800">
+                  <XCircle className="h-3 w-3" />
+                  <span className="font-medium">Adresse nicht gefunden</span>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-muted-foreground text-sm">Keine Adresse hinterlegt</p>
@@ -223,6 +298,65 @@ export function AddressCard({ title, address }: AddressCardProps) {
             </Button>
             <Button onClick={handleSave} disabled={isSaving}>
               {isSaving ? "Speichern..." : "Speichern"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Geoapify Vergleich-Dialog */}
+      <Dialog open={showSuggestion} onOpenChange={setShowSuggestion}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>🟡 Adresse prüfen</DialogTitle>
+            <DialogDescription>
+              Geoapify hat einen anderen Vorschlag für diese Adresse gefunden.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            {/* Original */}
+            <div className="p-3 bg-gray-50 rounded-md">
+              <p className="text-xs font-medium text-gray-500 mb-1">Aktuell gespeichert</p>
+              <p className="text-sm">{address?.street}</p>
+              <p className="text-sm">{address?.postal_code} {address?.city}</p>
+              <p className="text-sm">{address?.country}</p>
+            </div>
+
+            {/* Vorschlag */}
+            <div className="p-3 bg-green-50 rounded-md border border-green-200">
+              <p className="text-xs font-medium text-green-600 mb-1">Vorschlag von Geoapify</p>
+              <p className="text-sm font-medium">{address?.geoapify_suggested_street}</p>
+              <p className="text-sm font-medium">
+                {address?.geoapify_suggested_postal_code} {address?.geoapify_suggested_city}
+              </p>
+              <p className="text-sm font-medium">{address?.geoapify_suggested_country}</p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col gap-2">
+            <Button variant="outline" onClick={() => setShowSuggestion(false)}>
+              Ignorieren (aktuell beibehalten)
+            </Button>
+            <Button 
+              onClick={async () => {
+                if (!address) return;
+                setIsSaving(true);
+                const result = await updatePartnerAddress(address.id, {
+                  street: address.geoapify_suggested_street || undefined,
+                  postal_code: address.geoapify_suggested_postal_code || undefined,
+                  city: address.geoapify_suggested_city || undefined,
+                  country: address.geoapify_suggested_country || undefined,
+                });
+                setIsSaving(false);
+                if (result.ok) {
+                  setShowSuggestion(false);
+                  window.location.reload();
+                }
+              }}
+              disabled={isSaving}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isSaving ? "Übernehmen..." : "✅ Vorschlag übernehmen"}
             </Button>
           </DialogFooter>
         </DialogContent>
