@@ -10,6 +10,7 @@ services:
     restart: always
     env_file:
       - .env.production
+      - .env.local
     networks:
       - web
     labels:
