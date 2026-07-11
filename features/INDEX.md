@@ -32,7 +32,8 @@
 | PROJ-10 | Dark Mode | Roadmap | — | 2026-06-29 |
 
 | PROJ-20 | Kundendetail — Logistik & Abholung (Tab erweitern + nächste Abholung) | **Deployed** ✅ | [PROJ-20](PROJ-20-logistik-abholung.md) | 2026-07-06 |
+| PROJ-28 | Hersteller-Verwaltung & Artikel-Zuordnung | **Architected** | [PROJ-28](PROJ-28-hersteller-verwaltung.md) | 2026-07-10 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-21
+## Next Available ID: PROJ-29

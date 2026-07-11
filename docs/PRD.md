@@ -48,6 +48,7 @@ Jeder Werkzeug-Status trägt durchgängig die **Stationsfarbe** (siehe Design-Sy
 | P2 | PROJ-8 · Externe Bearbeitung & Fahrer-Transporte | Roadmap |
 | P2 | PROJ-9 · Benachrichtigungen (Rückläufer/Engpässe) | Roadmap |
 | P2 | PROJ-10 · Dark Mode | Roadmap |
+| P2 | PROJ-28 · Hersteller-Verwaltung & Artikel-Zuordnung | Roadmap |
 
 **Build-Reihenfolge & Abhängigkeiten:**
 PROJ-1 (Auth/Rollen) ist Fundament für alles. → PROJ-2 (Stammdaten) liefert die Werkzeuge, die PROJ-3 (Workflow/Status) durch die Stationen bewegt. → PROJ-4 (Arbeitslisten) und PROJ-5/6 (AV/QS) bauen auf dem Workflow auf. → PROJ-7 (Dashboard) aggregiert die Daten. → PROJ-8–10 sind Erweiterungen.

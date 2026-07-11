@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   Send,
   Users,
+  Factory,
+  PackageSearch,
 } from "lucide-react";
 
 import { type UserRole } from "@/lib/roles";
@@ -75,6 +77,8 @@ const navigationItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { href: "/verwaltung/nutzer", label: "Nutzerverwaltung", icon: Users },
   { href: "/verwaltung/abholungskalender", label: "Abholungskalender", icon: CalendarDays },
+  { href: "/verwaltung/hersteller", label: "Hersteller", icon: Factory },
+  { href: "/verwaltung/artikel", label: "Artikel", icon: PackageSearch },
 ];
 
 function NavigationSheet({ isAdmin }: { isAdmin: boolean }) {
