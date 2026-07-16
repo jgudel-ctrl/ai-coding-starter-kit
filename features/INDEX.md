@@ -23,6 +23,7 @@
 | PROJ-17 | Auftrags-Default im Kunden-Detail | ✅ Deployed | 2026-07-03 |
 | PROJ-18 | Globaler Header mit Navigation | ✅ Deployed | 2026-07-03 |
 | PROJ-19 | Auftragsverwaltung | ✅ Deployed | 2026-07-05 |
+| PROJ-20 | Logistik & Abholung im Kunden-Detail | ✅ Deployed | 2026-07-16 |
 | PROJ-21 | Fahrer-Seite | ✅ Deployed | 2026-07-06 |
 | PROJ-22 | Kalender für blockierte Tage | ✅ Deployed | 2026-07-07 |
 

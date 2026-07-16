@@ -21,7 +21,7 @@ export interface OrderStats {
  * Berechnet Umsatz pro Auftrag (Durchschnitt + Median) für einen Kunden.
  * 
  * Logik:
- * - Aufträge = abgeholt + archiviert (nur diese haben Umsatz generiert)
+ * - Aufträge = erledigt + archiviert (nur diese haben Umsatz generiert)
  * - Basis-Datum = tatsaechliches_abholdatum (wann wurde tatsächlich abgeholt)
  * - Pro Monat: Umsatz ÷ Aufträge = Durchschnitt dieses Monats
  * - Durchschnitt (Jahr) = Summe(Umsatz) / Summe(Aufträge)
@@ -53,7 +53,7 @@ export async function getPartnerOrderStats(
       .from("tours")
       .select("tatsaechliches_abholdatum")
       .eq("partner_id", partnerId)
-      .in("status", ["abgeholt", "archiviert"]);
+      .in("status", ["erledigt", "archiviert"]);
 
     if (orderError) {
       console.error("Order fetch error:", orderError);
@@ -169,7 +169,7 @@ export async function getPartnerOrderDates(partnerId: string) {
       .from("tours")
       .select("tatsaechliches_abholdatum")
       .eq("partner_id", partnerId)
-      .in("status", ["abgeholt", "archiviert"])
+      .in("status", ["erledigt", "archiviert"])
       .not("tatsaechliches_abholdatum", "is", null);
 
     if (error) {

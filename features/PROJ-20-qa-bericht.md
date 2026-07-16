@@ -60,8 +60,26 @@
 | Kriterium | Status |
 |-----------|--------|
 | Build erfolgreich | ✅ |
-| Migration getestet | ⏳ Wartet auf manuelle Ausführung |
+| Migration getestet | ✅ (Live-DB bestätigt korrekten Enum-Wert `geplant`/`erledigt`, siehe Bugfix unten) |
 | Feature vollständig | ✅ |
-| Keine kritischen Bugs | ✅ |
+| Keine kritischen Bugs | ✅ (siehe Bugfix 2026-07-16) |
 
-**Empfehlung:** Nach Migration ausführen → Go für Deploy 🚀
+**Empfehlung:** Deployed. Siehe Bugfix-Eintrag unten für Nacharbeit.
+
+---
+
+## Bugfix 2026-07-16 — Nachträglich gefundene Bugs
+
+Beim Testen mit dem Nutzer stellte sich heraus, dass "Abholung erstellen" auf der
+Kundendetailseite fehlschlug. Root Cause: `status: "geplan"` (Tippfehler statt `"geplant"`) in
+`pickup-tours.ts`, plus falsche Spaltennamen beim Lesen von `tms.partner_order_defaults`
+(`zugang`/`ruecksendung`/`abholzyklus_wochen`/`abholservice`/`fahrer_id` existieren dort nicht).
+Zusätzlich wurde in `order-stats.ts` der veraltete Enum-Wert `"abgeholt"` (umbenannt zu
+`"erledigt"`) gefunden, der die Umsatzstatistik verfälschte.
+
+Alle drei Stellen wurden korrigiert, `npm run build` läuft fehlerfrei durch. Details in
+`features/PROJ-20-logistik-abholung.md` (Abschnitt "Bugfix 2026-07-16").
+
+**Offen:** Manuelles Durchklicken auf der echten Live-Instanz (Kundendetailseite →
+"Abholung erstellen" → Karte prüft sofortiges Erscheinen) steht noch aus, da dieser Fix in
+einer isolierten Umgebung ohne Zugriff auf die Produktions-Datenbank entstanden ist.

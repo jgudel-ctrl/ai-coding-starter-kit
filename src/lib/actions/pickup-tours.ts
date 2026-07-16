@@ -103,7 +103,7 @@ export async function calculateNextPickupDate(
   // Lade Defaults
   const { data: defaults, error: defaultsError } = await serviceClient
     .from("partner_order_defaults")
-    .select("pickup_day, pickup_cycle_count, fahrer_id")
+    .select("pickup_day, pickup_cycle_count")
     .eq("partner_id", partnerId)
     .maybeSingle();
 
@@ -169,7 +169,7 @@ export async function createPickupTour(
   // Lade Defaults für Vorausfüllung
   const { data: defaults } = await serviceClient
     .from("partner_order_defaults")
-    .select("zugang, ruecksendung, driver_id, abholzyklus_wochen, abholservice")
+    .select("driver_id")
     .eq("partner_id", partnerId)
     .maybeSingle();
 
@@ -183,13 +183,13 @@ export async function createPickupTour(
 
   const payload = {
     partner_id: partnerId,
-    status: "geplan",
+    status: "geplant",
     geplantes_abholdatum: values.geplantes_abholdatum,
     fahrer_id: values.fahrer_id || defaults?.driver_id || null,
-    zugang: defaults?.zugang || "Bringen",
-    ruecksendung: defaults?.ruecksendung || "Lieferung",
-    abholzyklus_wochen: defaults?.abholzyklus_wochen || null,
-    abholservice: defaults?.abholservice || false,
+    zugang: "Bringen",
+    ruecksendung: "Lieferung",
+    abholzyklus_wochen: null,
+    abholservice: false,
     titel: values.titel || null,
     erstellt_von: user.id,
   };
@@ -219,7 +219,7 @@ export async function autoCreateNextPickup(
   // Prüfe ob Abholservice = Automatisch
   const { data: defaults } = await serviceClient
     .from("partner_order_defaults")
-    .select("pickup_delivery_status, pickup_cycle_count, pickup_day, driver_id, zugang, ruecksendung, abholzyklus_wochen")
+    .select("pickup_delivery_status, pickup_cycle_count, pickup_day, driver_id")
     .eq("partner_id", partnerId)
     .maybeSingle();
 
@@ -243,12 +243,12 @@ export async function autoCreateNextPickup(
 
   const payload = {
     partner_id: partnerId,
-    status: "geplan",
+    status: "geplant",
     geplantes_abholdatum: dateResult.date,
     fahrer_id: defaults.driver_id || null,
-    zugang: defaults.zugang || "Bringen",
-    ruecksendung: defaults.ruecksendung || "Lieferung",
-    abholzyklus_wochen: defaults.abholzyklus_wochen || null,
+    zugang: "Bringen",
+    ruecksendung: "Lieferung",
+    abholzyklus_wochen: null,
     abholservice: true,
     titel: "Automatisch erstellt",
     erstellt_von: user.id,
