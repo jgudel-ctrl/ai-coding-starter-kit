@@ -1,11 +1,35 @@
 # PROJ-20 · Logistik & Abholung im Kunden-Detail
 
-**Status:** Planned  
+**Status:** ✅ Deployed (Code seit 2026-07-06 auf `main`, Status-Header war fälschlich noch "Planned")  
 **Scope:** Kundendetailseite — Tab erweitern + "Nächste Abholung"-Karte + Blocker-Verwaltung  
 **Depends on:** PROJ-17 (Auftrags-Default), PROJ-19 (Touren-Tabelle `tms.tours`)  
 **Tech-Stack:** Next.js 16 App Router, TypeScript, Tailwind, shadcn/ui, Supabase (self-hosted)
 
 ---
+
+## Bugfix 2026-07-16 — "Nächste Abholung" funktionierte nicht live
+
+**Symptom:** "Abholung erstellen" auf der Kundendetailseite schlug fehl bzw. neue Abholungen
+erschienen nicht in der "Nächste Abholung"-Karte.
+
+**Root Causes in `src/lib/actions/pickup-tours.ts`:**
+1. `createPickupTour()` und `autoCreateNextPickup()` speicherten `status: "geplan"` (Tippfehler,
+   fehlendes "t"). Überall sonst im Code (Query-Filter, Status-Badge, Fahrer-Seite) wird
+   `"geplant"` verwendet — der reale DB-Enum-Wert ist `"geplant"`. Der Insert mit dem
+   ungültigen Enum-Wert schlug fehl.
+2. `calculateNextPickupDate()`, `createPickupTour()` und `autoCreateNextPickup()` lasen die
+   nicht existierenden Spalten `fahrer_id`, `zugang`, `ruecksendung`, `abholzyklus_wochen`,
+   `abholservice` aus `tms.partner_order_defaults` — diese Spalten gehören zur `tms.tours`-Tabelle,
+   nicht zu den Kunden-Defaults (siehe PROJ-17-Schema). Dadurch wurde der Fahrer nie automatisch
+   aus den Kunden-Defaults vorbefüllt.
+3. **Bonus-Fund (gleiche Ursache):** `src/lib/actions/order-stats.ts` filterte noch auf den
+   alten Enum-Wert `"abgeholt"` statt `"erledigt"` (im Rahmen von PROJ-20 in der Live-DB
+   umbenannt) — dadurch wurden ~70% der Touren-basierten Umsatzstatistik übersehen.
+
+**Fix:** Enum-Wert auf `"geplant"` korrigiert, Spaltenabfragen auf die tatsächlichen
+`partner_order_defaults`-Spalten (`driver_id`, `pickup_day`, `pickup_cycle_count`,
+`pickup_delivery_status`) reduziert, `order-stats.ts` auf `"erledigt"` umgestellt.
+`npm run build` erfolgreich (keine TS-Fehler).
 
 ## Problem Statement
 
