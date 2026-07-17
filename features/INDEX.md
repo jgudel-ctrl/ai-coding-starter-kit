@@ -16,7 +16,7 @@
 | ID | Name | Status | Letzte Änderung |
 |----|------|--------|-----------------|
 | PROJ-1 | Auth & Rollen | ✅ Deployed | 2026-06-18 |
-| PROJ-11 | Kundendetailseite | ✅ Deployed | 2026-07-02 |
+| PROJ-11 | Kundendetailseite | 🟡 In Progress (Erweiterung: Bestellhistorie Produkttyp/Gruppierung/Donut-Chart) | 2026-07-17 |
 | PROJ-14 | Umsatz-Service-Icon Fix | ✅ Deployed | 2026-07-02 |
 | PROJ-15 | Vorjahresvergleich + Ansichten | ✅ Deployed | 2026-07-02 |
 | PROJ-16 | Gestapeltes AreaChart | ✅ Deployed | 2026-07-02 |

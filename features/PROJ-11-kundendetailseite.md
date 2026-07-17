@@ -1,10 +1,10 @@
 # PROJ-11: Kundendetailseite (erweitert)
 
-**Status:** Spec geschrieben — wartet auf Review/Approval  
+**Status:** Deployed — Erweiterung (Bestellhistorie Produkttyp/Gruppierung/Donut-Chart) in Review, wartet auf Approval  
 **Projekt:** TMS 2.0  
 **Priorität:** Hoch  
 **Autor:** Klausi (KI-Entwickler)  
-**Datum:** 2026-07-02
+**Datum:** 2026-07-02 (Erweiterung: 2026-07-17)
 
 ---
 
@@ -79,6 +79,39 @@ Bereits vorhanden und bleibt erhalten:
 
 **Sortierung:** Neueste zuerst
 
+#### 2.4.1 Produkttyp-Filter, Gruppierung & Donut-Chart (Erweiterung 2026-07-17)
+
+**Werkstatt-Vergleich:** Bisher liegt jedes bestellte Teil einzeln in der
+Bestellhistorie-Kiste. Jetzt bekommt jedes Teil zusätzlich ein Fach-Etikett
+(Artikelgruppe) und wir stellen eine kleine Übersichtstafel (Donut-Chart)
+davor, die zeigt, wie viele Teile in welchem Fach liegen — ein Klick auf ein
+Tortenstück zeigt nur die Teile aus diesem Fach.
+
+**Zusätzlicher Filter — nur echte Handelsartikel:**
+- Verknüpfung: `invoice_items.article_number = tms.products.number`
+- Nur Positionen anzeigen, deren verknüpfter Artikel `tms.products.type = 'PRODUCT'` ist (nicht `'SERVICE'`)
+- Positionen ohne passenden Eintrag in `tms.products` werden **ausgeblendet** (kein Match = keine Anzeige)
+
+**Gruppierung:**
+- Jeder Artikel gehört über `tms.products.group_id` zu einer `tms.position_groups`-Gruppe (`name`, `number`, `display_name`)
+- Bestellpositionen werden dieser Gruppe zugeordnet und in der Tabelle danach gruppiert/gefiltert
+
+**Donut-Chart (neue Bento-Karte über der Tabelle):**
+- Ein Segment pro Artikelgruppe, die beim jeweiligen Kunden tatsächlich vorkommt
+- Kennzahl je Segment: **Anzahl Bestellpositionen** dieser Gruppe (Anzahl der Rechnungszeilen, nicht Mengen-Summe)
+- Klick auf ein Segment filtert die Tabelle darunter auf diese Gruppe
+- Erneuter Klick auf dasselbe (bereits aktive) Segment hebt den Filter wieder auf (Toggle)
+
+**Zusätzlicher Dropdown-Filter:**
+- Dropdown "Artikelgruppe" neben dem bestehenden Zeitraum-/Suchfilter
+- Zeigt nur Gruppen an, die bei diesem Kunden in den (produkttyp-gefilterten) Bestellpositionen vorkommen — keine leeren Gruppen
+- Dropdown und Donut-Chart sind synchronisiert (Auswahl im einen Element spiegelt sich im anderen)
+- Option "Alle" setzt den Filter zurück
+
+**Edge Cases:**
+- Kunde hat keine Positionen mit `type = 'PRODUCT'` → Donut-Chart zeigt Leerzustand, Tabelle zeigt bestehenden "Keine Bestellungen gefunden"-Zustand
+- Artikel ohne `group_id` (keine Gruppe zugeordnet) → wird nicht im Donut-Chart/Dropdown geführt, aber weiterhin in der Tabelle sichtbar (falls kein anderer Filter aktiv ist)
+
 ### 2.5 Kontakte
 
 **Liste verknüpfter Kontakte** (aus `partner_contacts`):
@@ -148,6 +181,13 @@ Bereits vorhanden und bleibt erhalten:
 - [ ] Suche nach Artikel/Beschreibung funktioniert
 - [ ] Sortierung: Neueste zuerst
 - [ ] Paginierung: 20 pro Seite
+- [ ] Nur Positionen mit verknüpftem `products.type = 'PRODUCT'` werden angezeigt; Positionen ohne Produkt-Match werden ausgeblendet
+- [ ] Donut-Chart zeigt genau die Artikelgruppen, die beim Kunden vorkommen (keine leeren Gruppen)
+- [ ] Donut-Chart-Segment = Anzahl Bestellpositionen dieser Gruppe
+- [ ] Klick auf Segment filtert Tabelle korrekt; erneuter Klick auf gleiches Segment hebt Filter wieder auf
+- [ ] Dropdown-Filter "Artikelgruppe" und Donut-Chart bleiben synchron
+- [ ] Dropdown zeigt "Alle" zum Zurücksetzen
+- [ ] Kunde ohne `type=PRODUCT`-Positionen: Donut-Chart und Tabelle zeigen sauberen Leerzustand, kein Fehler
 
 ### Kontakte
 - [ ] Alle verknüpften Kontakte werden angezeigt
@@ -237,6 +277,27 @@ WHERE partner_id = :id
 ORDER BY created_at DESC
 ```
 
+**Bestellhistorie — Produkttyp-Filter + Gruppierung (Erweiterung):**
+```sql
+SELECT
+  ii.*,
+  p.type AS product_type,
+  pg.id AS group_id,
+  pg.name AS group_name
+FROM tms.invoice_items ii
+JOIN tms.invoices i ON ii.invoice_id = i.id
+JOIN tms.products p ON p.number = ii.article_number
+LEFT JOIN tms.position_groups pg ON pg.id = p.group_id
+WHERE i.partner_id = :id
+  AND ii.revenue_category = 'trade_goods'
+  AND p.type = 'PRODUCT'
+ORDER BY i.document_date DESC
+```
+Referenz-Implementierungen für Produkt-/Gruppen-Zugriff bereits vorhanden in
+`src/lib/actions/manufacturers.ts` (`getProducts()`, `getPositionGroups()`,
+Typen `ProductWithManufacturer`, `PositionGroup`) — im Backend-Schritt
+wiederverwenden statt duplizieren.
+
 ### RLS:
 - Alle Nutzer können Adressen **lesen**
 - Admin/AV können Adressen **bearbeiten**
@@ -284,6 +345,25 @@ ORDER BY created_at DESC
 3. **/frontend + /backend** — Bauen
 4. **/qa** — Tests
 5. **/deploy** — Auf Server deployen
+
+---
+
+## 9. Decision Log
+
+### Produkt (2026-07-17 — Refine: Bestellhistorie Produkttyp/Gruppierung/Donut-Chart)
+- **Kennzahl im Donut-Chart:** Anzahl Bestellpositionen je Artikelgruppe (nicht Mengen-Summe). Begründung: User-Beispiel "10 mal ein HW Sägeblatt gekauft" bezieht sich auf Anzahl der Vorkommnisse, nicht auf Stückzahl je Position.
+- **Segment-Klick-Verhalten:** Toggle — erneuter Klick auf aktives Segment hebt den Filter auf. Dropdown bietet zusätzlich "Alle" als expliziten Reset.
+- **Umgang mit nicht matchbaren Artikeln:** Positionen ohne passenden `products`-Eintrag (kein `number`-Match zu `article_number`) werden ausgeblendet, da `type = 'PRODUCT'` sonst nicht verifizierbar ist.
+
+### Technisch (2026-07-17)
+- Verknüpfung `invoice_items.article_number = products.number` (Spaltennamen unterscheiden sich bewusst — kein Rename der Bestandstabellen).
+- Gruppendaten kommen über `products.group_id` → `position_groups`, analog zur bestehenden Hersteller-Verwaltung (PROJ-28). Bestehende Actions in `manufacturers.ts` werden wiederverwendet.
+
+## 10. Offene Fragen (zur Bestätigung vor "approved")
+
+- [ ] Kennzahl im Donut-Chart = Anzahl Bestellpositionen (nicht Mengen-Summe) — bitte bestätigen oder korrigieren
+- [ ] Toggle-Verhalten beim erneuten Klick auf ein aktives Segment — bitte bestätigen oder korrigieren
+- [ ] Ausblenden von Positionen ohne Produkt-Match (statt z.B. "unbekannt" anzuzeigen) — bitte bestätigen oder korrigieren
 
 ---
 
