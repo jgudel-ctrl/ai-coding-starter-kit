@@ -85,3 +85,47 @@ Ausnahme: Trivialer Hotfix (z.B. Einzeiler, ENV-Variable),
 **NUR** wenn der User das Wort "Hotfix" explizit verwendet.
 Dann darf der volle Workflow übersprungen werden,
 aber die Spec/INDEX muss danach trotzdem aktualisiert werden.
+
+## Anforderungsaufnahme (Phase 1) — vor `/write-spec`
+
+Bevor eine Spec geschrieben wird, wird die Anforderung strukturiert erhoben.
+Leitfaden mit 10 Themen (1–5 an TMS 2.0 angepasst, dienen als Vorschlag):
+
+1. **Ziel & Nutzen** — welches Problem löst das Feature, welcher Mehrwert?
+2. **Rollen & Rechte** — welche der 7 Rollen sind betroffen, welche RLS-Regeln?
+3. **Datenmodell** — Entitäten, Felder, Beziehungen, Pflichtangaben.
+4. **Workflow & Status** — Stationen, Statusübergänge, Rückläufer/Achtung.
+5. **UI & Terminal-Tauglichkeit** — Touch ≥ 48px, Mobile-First, Design-System.
+6. **Edge Cases & Fehler** — was darf nicht passieren, wie fangen wir Fehler ab?
+7. **Integrationen & APIs** — externe Abhängigkeiten, Schnittstellen.
+8. **Notifications** — wann/wen benachrichtigen (Rückläufer, Engpässe)?
+9. **Statistiken & Reporting** — welche Kennzahlen sollen messbar sein?
+10. **Performance & Datenmenge** — erwartetes Volumen, Antwortzeiten.
+
+**Stopp-Kriterium:** mindestens 6–8 geklärte Fragen — oder der User sagt „Genug".
+Erst danach folgt `/write-spec`.
+
+## Technische Grundhaltung — Secure by Design
+
+- **Security & Robustheit vor Geschwindigkeit** (Security/Robustness over Velocity).
+- Im Zweifel den **sichersten und stabilsten Weg** wählen — auch wenn er langsamer ist.
+- Gilt für Architektur-, Backend- und Deployment-Entscheidungen gleichermaßen.
+
+## Post-Deploy-Verifikation (Playwright, automatisch)
+
+Die `/deploy`-Skill verifiziert jeden Deploy automatisch über `./scripts/deploy.sh PROJ-XX`:
+
+- Das Skript führt Pre-Checks (Lint + Build), den Docker-Deploy und anschließend
+  einen **Playwright-Smoke-Test gegen die Live-URL** aus (`npm run test:deploy`,
+  Config `playwright.deploy.config.ts`, Tests in `tests/deploy/`).
+- **Bei Erfolg:** Meldung „Deployed ✅" und Status in `features/INDEX.md` auf *Deployed*.
+- **Bei Fehler:** maximal **5 Anläufe** (mit Backoff, falls der Container warmläuft),
+  dann **Stopp** — Screenshots/Trace unter `test-results-deploy/` dienen als Beweis.
+- Feature-spezifische Deploy-Tests kommen als weitere `*.spec.ts` in `tests/deploy/`.
+
+## Kommunikation mit dem Product Manager
+
+- Rückfragen an den User werden per **Werkstatt-Analogie** erklärt (verständlich,
+  ohne Tech-Jargon).
+- Gilt **nur** für die Kommunikation mit dem User — **nicht** für die Interaktion
+  mit anderen Tools/Skills (dort normaler technischer Stil).
