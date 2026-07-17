@@ -200,3 +200,11 @@ Für jedes neue Feature gilt verbindlich:
 - **Gateway:** Port 18789, systemd-user-service
 - **Workspace:** /home/botti/.openclaw/workspace
 - **Model:** ollama-cloud/kimi-k2.6 (default)
+
+## Claude Code — Voller DB-Zugriff (2026-07-17)
+
+- **Status:** Jan Bernd hat Claude Code (dieser Session-Typ, nicht Klausi) bewusst vollen Zugriff auf die self-hosted Supabase-Instanz (`supabase.gudel-werkzeuge.de`) gegeben — inkl. Struktur-Änderungen (DDL).
+- **Wie:** Service-Role-Key (aus `.env.production` auf dem Server) + eine eigens angelegte Postgres-Funktion `public.exec_sql(query text)` (SECURITY DEFINER, nur für `service_role` ausführbar), die beliebiges SQL über die normale HTTPS-REST-API ausführt. Kein SSH, kein offener Postgres-Port nötig (Claude-Code-Sandbox kann ohnehin nur HTTP(S), kein rohes TCP).
+- **Ausdrücklich vereinbart:** Sobald die App fertig gebaut ist, muss dieser erweiterte Zugriff wieder eingeschränkt werden.
+  - Einfachster Rückbau: `DROP FUNCTION public.exec_sql(text);` im SQL-Editor ausführen — entfernt die DDL-Fähigkeit sofort wieder, der normale Service-Role-Zugriff (Daten-CRUD) bleibt bestehen.
+- **Erinnerung für zukünftige Sessions:** Vor dem finalen Produktions-Go-Live (`/deploy` für den letzten großen Meilenstein, oder wenn Jan Bernd sagt "die App ist fertig") aktiv nachfragen, ob `exec_sql` entfernt werden soll.
