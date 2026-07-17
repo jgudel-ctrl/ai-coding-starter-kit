@@ -1,7 +1,7 @@
 # PROJ-11: Architektur — Kundendetailseite (erweitert)
 
-**Status:** Approved → Architektur geschrieben  
-**Datum:** 2026-07-02
+**Status:** Approved → Architektur geschrieben (Erweiterung 2026-07-17 in Review)  
+**Datum:** 2026-07-02 (Erweiterung: 2026-07-17)
 
 ---
 
@@ -411,4 +411,101 @@ npm run lint
 
 ---
 
-*Architektur approved → Bereit für Frontend/Backend*
+## 12. Erweiterung (2026-07-17): Bestellhistorie — Produkttyp-Filter, Gruppierung, Donut-Chart
+
+### 12.1 Zusammenfassung
+
+`getPartnerTradeOrders` (siehe Abschnitt 3) wird um einen Join gegen die
+Artikel-Stammdaten (PROJ-28) erweitert. Zusätzlich kommt eine neue, leichte
+Aggregat-Action für die Donut-Chart-Kacheln hinzu. Keine neuen Tabellen,
+keine neuen Migrationen — nur zusätzliche Felder in bestehenden Abfragen.
+
+### 12.2 Datenbank-Schema (Bestehend, aus PROJ-28)
+
+```
+tms.products
+- id (uuid, PK)
+- number (text)              -- Matching-Feld zu invoice_items.article_number
+- type (text: 'PRODUCT' | 'SERVICE')
+- group_id (bigint, FK → tms.position_groups.id, nullable)
+- manufacturer_id (uuid, FK → tms.manufacturers.id, nullable)
+
+tms.position_groups
+- id (bigint, PK)
+- name (text)
+- number (text, nullable)
+- display_name (text, nullable)
+```
+
+### 12.3 Datenfluss (Server Actions)
+
+**Erweiterung: `getPartnerTradeOrders(partnerId, page, pageSize, search, groupId?)`**
+`src/lib/actions/orders.ts`
+- Zusätzlicher Join: `invoice_items.article_number → products.number`
+- Zusätzlicher Filter: `products.type = 'PRODUCT'` (harte Bedingung, ersetzt
+  nicht den bestehenden `revenue_category = 'trade_goods'`-Filter, kommt on
+  top)
+- Neuer optionaler Parameter `groupId`: filtert zusätzlich auf
+  `products.group_id = :groupId`, wenn gesetzt (Dropdown/Chart-Auswahl)
+- `TradeOrderItem`-Interface erweitert um `group_id: number | null` und
+  `group_name: string | null`
+- Positionen ohne Match in `products` (kein `number` gefunden) werden über
+  einen `!inner`-Join implizit ausgeschlossen (statt LEFT JOIN)
+
+**Neu: `getPartnerOrderGroupStats(partnerId, search?)`**
+`src/lib/actions/orders.ts`
+- Aggregiert **über die gesamte Historie** des Kunden (kein Pagination-Limit),
+  gruppiert nach `group_id`/`group_name`, zählt Anzahl Bestellpositionen pro
+  Gruppe
+- Gleicher Grundfilter wie oben (`revenue_category = 'trade_goods'`,
+  `products.type = 'PRODUCT'`)
+- Liefert nur Gruppen, die tatsächlich ≥1 Position beim Kunden haben
+  (dynamische Liste für Chart + Dropdown)
+- Wiederverwendet dasselbe Join-Muster wie `getProducts()`/
+  `getPositionGroups()` in `src/lib/actions/manufacturers.ts`
+
+### 12.4 Komponenten-Struktur (Erweiterung)
+
+```
+Tab: Bestellhistorie
+  → OrderGroupChart (NEU, Client Component)
+      - Recharts PieChart (innerRadius → Donut), analog zu
+        src/components/manufacturers/product-chart.tsx
+      - onClick pro Segment → setzt/togglet aktiven Gruppen-Filter
+  → OrderHistoryFilters (bestehend, erweitert)
+      - NEU: Select "Artikelgruppe" (shadcn Select), Optionen aus
+        getPartnerOrderGroupStats(), inkl. "Alle"
+  → OrderHistoryTable (bestehend)
+      - liest denselben Filter-Zustand (aktive Gruppe) wie Chart/Dropdown
+```
+
+Filter-Zustand (`activeGroupId: number | null`) lebt als `useState` auf
+Ebene der Bestellhistorie-Tab-Komponente (Client), analog zum bestehenden
+Zeitraum-/Suchfilter-State-Pattern (siehe Abschnitt 6).
+
+### 12.5 Security & RLS
+
+- `tms.products` und `tms.position_groups` werden wie `invoice_items`/
+  `invoices` über `createAdminClient({ schema: "tms" })` (Service-Role)
+  gelesen — gleiches Muster wie der bestehende BUG-2-Fix.
+- Analog zu BUG-2 prüfen: `service_role` benötigt `GRANT SELECT` auf
+  `tms.products` und `tms.position_groups`, falls noch nicht vorhanden
+  (im `/qa`-Schritt verifizieren, ggf. Migration nachziehen).
+
+### 12.6 Dateien-Liste (Erweiterung)
+
+```
+Geändert:
+src/lib/actions/orders.ts                            # Join + neuer Stats-Endpoint
+src/app/(app)/kunden/[id]/components/order-history-table.tsx  # Gruppen-Filter verdrahten
+src/app/(app)/kunden/[id]/components/order-history-filters.tsx # Dropdown "Artikelgruppe"
+
+Neu:
+src/app/(app)/kunden/[id]/components/order-group-chart.tsx     # Donut-Chart
+```
+
+Keine neuen Dependencies (Recharts + shadcn Select bereits vorhanden).
+
+---
+
+*Architektur-Erweiterung 2026-07-17 approved → Bereit für Frontend/Backend*

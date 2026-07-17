@@ -361,9 +361,98 @@ wiederverwenden statt duplizieren.
 
 ## 10. Offene Fragen (zur Bestätigung vor "approved")
 
-- [ ] Kennzahl im Donut-Chart = Anzahl Bestellpositionen (nicht Mengen-Summe) — bitte bestätigen oder korrigieren
-- [ ] Toggle-Verhalten beim erneuten Klick auf ein aktives Segment — bitte bestätigen oder korrigieren
-- [ ] Ausblenden von Positionen ohne Produkt-Match (statt z.B. "unbekannt" anzuzeigen) — bitte bestätigen oder korrigieren
+- [x] Kennzahl im Donut-Chart = Anzahl Bestellpositionen (nicht Mengen-Summe) → bestätigt (2026-07-17)
+- [x] Toggle-Verhalten beim erneuten Klick auf ein aktives Segment → bestätigt (2026-07-17)
+- [x] Ausblenden von Positionen ohne Produkt-Match (statt z.B. "unbekannt" anzuzeigen) → bestätigt (2026-07-17)
+
+---
+
+## 11. Tech Design (Solution Architect) — Erweiterung Bestellhistorie (2026-07-17)
+
+**Werkstatt-Vergleich:** Die bestehende Bestellhistorie-Kiste bekommt eine
+neue Übersichtstafel davor (Donut-Chart) und ein zusätzliches
+Sortier-Fach-Etikett (Artikelgruppe) an jeder Position. Die Kiste selbst
+(Datenbank-Tabellen) bleibt unverändert — wir lesen nur zusätzliche
+Informationen mit, die an anderer Stelle (Artikel-Stammdaten aus PROJ-28)
+bereits vorhanden sind.
+
+### A) Komponenten-Struktur
+
+```
+Tab: Bestellhistorie
+├── Artikelgruppen-Übersicht (NEUE Karte, oberhalb der Tabelle)
+│   ├── Donut-Chart — ein Tortenstück pro Artikelgruppe des Kunden
+│   └── Dropdown "Artikelgruppe" — Alternative zum Klicken im Chart
+├── Bestellhistorie-Tabelle (bestehend)
+│   ├── Zeitraum-Filter (bestehend)
+│   ├── Suchfeld (bestehend)
+│   └── Zeilen — nur noch "echte" Handelsartikel (kein Werkzeug-Service)
+```
+
+Chart und Dropdown wirken auf denselben Filter-Zustand ("aktive
+Artikelgruppe"): Klick im Chart setzt das Dropdown automatisch mit, und
+umgekehrt. Ändert sich Zeitraum oder Suche, passt sich die Liste der im
+Chart/Dropdown wählbaren Gruppen automatisch an (nur was beim Kunden gerade
+vorkommt, wird angeboten).
+
+### B) Datenmodell (fachlich)
+
+Keine neuen Tabellen. Jede Bestellposition bekommt zwei zusätzliche
+Informationen "angeheftet", die aus den bereits existierenden
+Artikel-Stammdaten (PROJ-28) stammen:
+- **Artikel-Art:** ist die Position ein "echter" Artikel oder eine
+  Dienstleistung? Nur "echte Artikel" werden in der Bestellhistorie gezeigt.
+- **Artikelgruppe:** zu welcher Warengruppe gehört der Artikel (z.B. "HW
+  Sägeblatt")? Wird für die Gruppierung, das Donut-Chart und den
+  Dropdown-Filter verwendet.
+
+Für das Donut-Chart wird zusätzlich eine kleine Zusammenfassung berechnet:
+pro Artikelgruppe, wie viele Bestellpositionen der Kunde insgesamt in dieser
+Gruppe hat (nicht nur die aktuell sichtbare Tabellenseite, sondern über die
+gesamte Historie des Kunden hinweg — sonst wäre die Übersichtstafel bei
+Seitenwechsel irreführend).
+
+Der ausgewählte Filter (welche Gruppe gerade aktiv ist) ist reiner
+Anzeige-Zustand auf der Seite — er wird nirgends gespeichert und ist beim
+nächsten Öffnen der Seite wieder zurückgesetzt.
+
+### C) Tech-Entscheidungen (Begründung)
+
+- **Wiederverwendung statt Neubau:** Die Verknüpfung "Bestellposition →
+  Artikel-Stammdaten → Warengruppe" existiert bereits für die
+  Hersteller-Verwaltung (PROJ-28). Wir nutzen dieselbe Verknüpfung, statt sie
+  neu zu bauen — geringeres Risiko, konsistente Daten.
+- **Filterung passiert serverseitig:** Wie bei den bestehenden Filtern
+  (Zeitraum, Suche) wird die Artikelgruppen-Auswahl direkt in der
+  Datenbank-Abfrage angewendet, nicht erst im Browser gefiltert. Das hält die
+  Seite schnell, auch bei Kunden mit sehr vielen Bestellungen.
+- **Übersichtstafel (Donut-Chart) = eigene, leichte Abfrage:** Damit die
+  Kacheln im Chart die Gesamt-Häufigkeit zeigen (nicht nur die aktuelle
+  Tabellenseite), wird dafür eine kleine, separate Zusammenfassungs-Abfrage
+  je Kunde genutzt — dasselbe Muster, das für die bestehende
+  Artikel/Dienstleistungs-Verteilung in der Hersteller-Verwaltung schon
+  existiert.
+- **Gleiches Chart-Erscheinungsbild wie bei den Herstellern:** Für das
+  Donut-Chart wird dieselbe Diagramm-Bibliothek und derselbe visuelle Aufbau
+  verwendet wie beim bereits bestehenden Artikel/Dienstleistungs-Diagramm in
+  der Hersteller-Verwaltung — einheitliches Erscheinungsbild, keine neue
+  Abhängigkeit nötig.
+
+### D) Abhängigkeiten (Packages)
+
+Keine neuen Packages nötig — Diagramm-Bibliothek und Dropdown-Baustein sind
+bereits im Projekt vorhanden und werden nur wiederverwendet.
+
+---
+
+## 12. Technical Decisions (Architektur, 2026-07-17)
+
+| Decision | Rationale | Date |
+|----------|-----------|------|
+| Gruppen-/Typ-Filterung serverseitig in der bestehenden Bestellhistorie-Abfrage ergänzen (kein neuer Endpoint für die Tabelle) | Konsistent mit bestehendem Zeitraum-/Suchfilter-Muster, keine doppelte Abfrage-Logik | 2026-07-17 |
+| Donut-Chart-Zahlen über separate Zusammenfassungs-Abfrage (Gesamt-Historie, nicht Seiten-abhängig) | Chart muss unabhängig von Pagination korrekt bleiben | 2026-07-17 |
+| Wiederverwendung der bestehenden Artikel/Gruppen-Verknüpfung aus der Hersteller-Verwaltung (PROJ-28) statt neuer Tabellen/Views | Vermeidet Datenduplikation, nutzt bereits vorhandene, geprüfte Verknüpfung | 2026-07-17 |
+| Gleiches Donut-Chart-Erscheinungsbild wie im bestehenden Artikel/Dienstleistungs-Diagramm der Hersteller-Verwaltung | Visuelle Konsistenz, keine neue Bibliothek nötig | 2026-07-17 |
 
 ---
 
