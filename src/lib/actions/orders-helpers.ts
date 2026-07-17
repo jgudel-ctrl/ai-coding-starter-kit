@@ -1,3 +1,15 @@
+/**
+ * Escaped einen Suchbegriff für die Einbettung in einen PostgREST
+ * `.or()`-Filter-String. Ohne Escaping könnten Zeichen wie `,` oder `)`
+ * die Filter-Syntax verändern und zusätzliche Bedingungen einschleusen
+ * (gefunden bei QA, siehe BUG-2 in features/PROJ-11-kundendetailseite.md).
+ * PostgREST erlaubt doppelt gequotete Filterwerte, um Sonderzeichen wörtlich
+ * zu behandeln — darin müssen nur Backslash und Anführungszeichen escaped werden.
+ */
+export function escapeOrFilterValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 export interface OrderGroupStat {
   group_id: number;
   group_name: string;

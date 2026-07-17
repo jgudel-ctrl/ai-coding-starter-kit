@@ -16,7 +16,7 @@
 | ID | Name | Status | Letzte Änderung |
 |----|------|--------|-----------------|
 | PROJ-1 | Auth & Rollen | ✅ Deployed | 2026-06-18 |
-| PROJ-11 | Kundendetailseite | 🟠 In Review (QA: 2 Medium/1 Low Bug, Live-Verifikation gegen echte Daten ausstehend — Bestellhistorie Produkttyp/Gruppierung/Donut-Chart) | 2026-07-17 |
+| PROJ-11 | Kundendetailseite | 🟠 In Review (2/3 QA-Bugs gefixt, Live-Verifikation gegen echte Daten ausstehend — Bestellhistorie Produkttyp/Gruppierung/Donut-Chart) | 2026-07-17 |
 | PROJ-14 | Umsatz-Service-Icon Fix | ✅ Deployed | 2026-07-02 |
 | PROJ-15 | Vorjahresvergleich + Ansichten | ✅ Deployed | 2026-07-02 |
 | PROJ-16 | Gestapeltes AreaChart | ✅ Deployed | 2026-07-02 |

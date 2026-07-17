@@ -1,7 +1,12 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { buildGroupStats, type OrderGroupStat, type ProductGroupInfo } from "./orders-helpers";
+import {
+  buildGroupStats,
+  escapeOrFilterValue,
+  type OrderGroupStat,
+  type ProductGroupInfo,
+} from "./orders-helpers";
 
 export type { OrderGroupStat };
 
@@ -34,7 +39,7 @@ async function getProductGroupMap(
     .eq("type", "PRODUCT")
     .not("number", "is", null);
 
-  if (groupId) {
+  if (groupId !== undefined) {
     query = query.eq("group_id", groupId);
   }
 
@@ -107,7 +112,8 @@ export async function getPartnerTradeOrders(
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (search) {
-      query = query.or(`description.ilike.%${search}%,article_number.ilike.%${search}%`);
+      const escaped = escapeOrFilterValue(search);
+      query = query.or(`description.ilike."%${escaped}%",article_number.ilike."%${escaped}%"`);
     }
 
     const { data, error, count } = await query;
@@ -186,7 +192,8 @@ export async function getPartnerOrderGroupStats(partnerId: string, search?: stri
       .in("article_number", qualifyingNumbers);
 
     if (search) {
-      query = query.or(`description.ilike.%${search}%,article_number.ilike.%${search}%`);
+      const escaped = escapeOrFilterValue(search);
+      query = query.or(`description.ilike."%${escaped}%",article_number.ilike."%${escaped}%"`);
     }
 
     const { data, error } = await query;

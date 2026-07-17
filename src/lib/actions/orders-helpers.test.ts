@@ -1,5 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { buildGroupStats } from "./orders-helpers";
+import { buildGroupStats, escapeOrFilterValue } from "./orders-helpers";
+
+describe("escapeOrFilterValue", () => {
+  it("leaves plain text untouched", () => {
+    expect(escapeOrFilterValue("Sägeblatt")).toBe("Sägeblatt");
+  });
+
+  it("escapes double quotes so they cannot close the quoted filter value early", () => {
+    expect(escapeOrFilterValue('x"y')).toBe('x\\"y');
+  });
+
+  it("escapes backslashes", () => {
+    expect(escapeOrFilterValue("a\\b")).toBe("a\\\\b");
+  });
+
+  it("leaves comma and parenthesis untouched (harmless inside a quoted value)", () => {
+    expect(escapeOrFilterValue("a,b)c(d")).toBe("a,b)c(d");
+  });
+});
 
 describe("buildGroupStats", () => {
   it("counts positions per group and sorts descending by count", () => {

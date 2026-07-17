@@ -570,6 +570,7 @@ nicht diese Feature-Details).
   Identity/Serial-Spalten i.d.R. bei 1 starten — aber nicht verifiziert.
 - **Fix-Vorschlag:** `if (groupId !== undefined)` statt Truthy-Check.
 - **Priorität:** Vor Deployment beheben (einzeilig, geringes Risiko).
+- **Status:** ✅ Behoben (2026-07-17) — `getProductGroupMap()` prüft jetzt `groupId !== undefined`.
 
 #### BUG-2: Suchbegriff unescaped in PostgREST `.or()`-Filter (zweite Fundstelle)
 - **Severity:** Medium
@@ -589,6 +590,12 @@ nicht diese Feature-Details).
   oder auf `%`/Wildcard-Zeichen beschränken.
 - **Priorität:** Sollte behoben werden, ist aber kein Blocker (vorbestehendes
   Muster, begrenzter Blast Radius).
+- **Status:** ✅ Behoben (2026-07-17) — neue Helper-Funktion
+  `escapeOrFilterValue()` in `orders-helpers.ts` (unit-getestet) escaped
+  Backslash/Anführungszeichen, Filterwerte werden jetzt zusätzlich gequotet
+  (`ilike."%wert%"`), sodass `,`/`)` im Suchbegriff die Filter-Syntax nicht
+  mehr verändern können. In beiden Fundstellen angewendet (auch der
+  vorbestehenden in `getPartnerTradeOrders`).
 
 #### BUG-3 (Regressionsrisiko, kein Bug im engeren Sinn): Weniger Zeilen als vorher möglich
 - **Severity:** Medium (Business-Impact, kein Code-Fehler)
@@ -604,6 +611,8 @@ nicht diese Feature-Details).
 - **Empfehlung:** Vor `/deploy` stichprobenartig bei 2–3 Bestandskunden
   vergleichen: Zeilenzahl vorher vs. nachher, um unerwarteten Datenverlust
   in der Anzeige auszuschließen.
+- **Status:** Kein Code-Fix möglich/nötig (bewusste Spec-Entscheidung) —
+  bleibt offener Punkt für die Live-Verifikation vor `/deploy`.
 
 ### Security-Audit (statisch, Red-Team-Perspektive)
 - [x] Auth: Route `/kunden/[id]` durch Middleware geschützt (kein Login →
@@ -628,9 +637,12 @@ nach Deploy beobachten.
 ### Zusammenfassung
 - **Akzeptanzkriterien:** 2/7 statisch bestätigt, 5/7 ungeprüft (Live-Daten
   nötig), 0 fehlgeschlagen
-- **Bugs gefunden:** 3 (0 Critical, 0 High, 2 Medium, 1 Low)
-- **Security:** keine kritischen Funde; ein bekanntes, vorbestehendes
-  Escaping-Muster verdient Nachbesserung (Medium)
+- **Bugs gefunden:** 3 (0 Critical, 0 High, 2 Medium, 1 Low) — **2/3 behoben**
+  (BUG-1 Truthy-Check, BUG-2 Filter-Escaping); BUG-3 ist eine bewusste
+  Spec-Entscheidung ohne Code-Fix, bleibt als Live-Verifikationspunkt offen.
+  Nach den Fixes: Typecheck ✅, Build ✅, 8/8 Unit-Tests ✅ (4 neue Tests für
+  `escapeOrFilterValue`).
+- **Security:** keine kritischen Funde; das Escaping-Muster wurde behoben
 - **Production-Ready:** **NOT READY** — nicht wegen gefundener Bugs, sondern
   weil die Kernfunktionalität (Chart-Zahlen, Gruppen-Filter, Leerzustand)
   mangels Datenbankzugriff in dieser Sandbox nicht gegen echte Daten
