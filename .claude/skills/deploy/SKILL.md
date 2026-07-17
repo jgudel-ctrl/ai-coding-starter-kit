@@ -52,19 +52,37 @@ Guide the user through:
 - [ ] Add Traefik labels for host routing + TLS, e.g. `traefik.http.routers.tms.rule=Host(\`tms.gudel-werkzeuge.de\`)` (and a separate router for the staging host)
 - [ ] Provide environment variables via an `.env` file on the server or compose `env_file:` — point `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` at the self-hosted Supabase instance (never commit these)
 
-### 3. Deploy
-- Build and ship the image to the Hetzner host (e.g. `docker compose build` + `docker compose up -d`, or build/push to a registry and pull on the host)
-- Deploy to **staging** first (`tms-staging.gudel-werkzeuge.de`), verify, then promote the same image to **production** (`tms.gudel-werkzeuge.de`)
-- Traefik picks up the container via its labels and routes the configured host to it
-- Watch the rollout: `docker compose logs -f` (app) and the Traefik dashboard/logs for routing & TLS
+### 3. Deploy + automatische Verifikation
+
+**Standardweg — immer über das Deploy-Skript:**
+
+```bash
+./scripts/deploy.sh PROJ-XX
+```
+
+Das Skript führt in einem Durchgang aus:
+1. **Pre-Checks:** `npm run lint` + `npm run build`
+2. **Deploy:** `docker compose build` + `docker compose up -d` (Traefik routet per Labels)
+3. **Post-Deploy-Verifikation:** Playwright-Smoke gegen die Live-URL, **max. 5 Anläufe**
+   - Erfolg → `Deployed ✅`
+   - Fehler → Stopp; Screenshots/Trace unter `test-results-deploy/` als Beweis
+
+Stellschrauben (Env): `DEPLOY_TARGET` (`staging`|`production`), `DEPLOY_BASE_URL`,
+`MAX_VERIFY_ATTEMPTS`, `SKIP_DEPLOY=1` (nur verifizieren).
+
+> Erst nach **staging** verifizieren, dann dasselbe Image nach **production** promoten.
+> Rollout beobachten: `docker compose logs -f` und die Traefik-Logs (Routing & TLS).
 
 ### 4. Post-Deployment Verification
-- [ ] Production URL (`https://tms.gudel-werkzeuge.de`) loads correctly
-- [ ] Deployed feature works as expected
+
+Der Playwright-Smoke (Schritt 3) prüft automatisch Erreichbarkeit, korrekte App
+(TMS-2.0-Fingerabdruck) und gerendertes Login-Formular. Zusätzlich manuell abhaken:
+
+- [ ] Automatischer Post-Deploy-Check grün (`Deployed ✅`)
+- [ ] Deployed feature works as expected (feature-spezifischer Test in `tests/deploy/`)
 - [ ] Database connections to self-hosted Supabase work (if applicable)
 - [ ] Authentication flows work (if applicable)
 - [ ] TLS certificate is valid (Traefik / Let's Encrypt)
-- [ ] No errors in browser console
 - [ ] No errors in container logs (`docker compose logs`)
 
 ### 5. Production-Ready Essentials

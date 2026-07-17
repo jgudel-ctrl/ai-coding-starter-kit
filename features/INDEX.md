@@ -1,39 +1,57 @@
 # Feature Index
 
-> Central tracking for all features. Updated by skills automatically.
+Übersicht aller Features und deren Status.
 
-## Status Legend
-- **Roadmap** - `/init` done, feature identified in feature map, no spec file yet
-- **Planned** - `/write-spec` done, full spec written, architecture not yet designed
-- **Architected** - `/architecture` done, tech design approved, ready to build
-- **In Progress** - `/frontend` or `/backend` active or completed, not yet in QA
-- **In Review** - `/qa` active, testing in progress
-- **Approved** - `/qa` passed, no critical/high bugs, ready to deploy
-- **Deployed** - `/deploy` done, live in production
+## Legende
+
+- **🔵 Planned** — Geplant, noch nicht gestartet
+- **🟡 In Progress** — In Bearbeitung
+- **🟠 In Review** — Wartet auf Review/Freigabe
+- **✅ Deployed** — Live
+
+---
 
 ## Features
 
-| ID | Feature | Status | Spec | Created |
-|----|---------|--------|------|---------|
-| BUG-2 | Bestellhistorie zeigt keine Daten (RLS-Fix) | **Deployed** ✅ | [BUG-2](BUG-2-bestellhistorie-keine-daten.md) | 2026-07-02 |
-| PROJ-1  | Auth & Rollen (Invite-only, 7 Rollen, RLS) | Deployed | [PROJ-1](PROJ-1-auth-rollen.md) | 2026-06-29 |
-| PROJ-2a.1  | Kunden-Stammdaten (Read-Only, tms.partners) | **Deployed** | [PROJ-2a.1](PROJ-2a.1-kunden-stammdaten.md) | 2026-07-02 |
-| PROJ-11 | Kundendetailseite (erweitert) | **Deployed** ✅ | [PROJ-11](PROJ-11-kundendetailseite.md) | 2026-07-02 |
-| PROJ-17 | Auftrags-Default im Kunden-Detail | **Deployed** ✅ | [PROJ-17](PROJ-17-auftrags-default.md) | 2026-07-03 |
-| PROJ-19 | Datenimport Auftrags-Defaults (CSV → DB) | **In Review** 🔄 | [PROJ-19](PROJ-19-datenimport-auftrags-defaults.md) | 2026-07-03 |
-| PROJ-2  | Werkzeug-Stammdaten (CRUD + Suche) | Roadmap | — | 2026-06-29 |
-| PROJ-3  | Stations-Workflow & Status-Tracking (Kern) | Roadmap | — | 2026-06-29 |
-| PROJ-4  | Stations-Arbeitslisten | Roadmap | — | 2026-06-29 |
-| PROJ-5  | Arbeitsvorbereitung — Pfad/Auftrag festlegen | Roadmap | — | 2026-06-29 |
-| PROJ-6  | QS-Station — Prüfen, Freigabe, Rückläufer | Roadmap | — | 2026-06-29 |
-| PROJ-7  | Dashboard & Kennzahlen (Bento, Charts) | Roadmap | — | 2026-06-29 |
-| PROJ-8  | Externe Bearbeitung & Fahrer-Transporte | Roadmap | — | 2026-06-29 |
-| PROJ-9  | Benachrichtigungen (Rückläufer/Engpässe) | Roadmap | — | 2026-06-29 |
-| PROJ-10 | Dark Mode | Roadmap | — | 2026-06-29 |
+| ID | Name | Status | Letzte Änderung |
+|----|------|--------|-----------------|
+| PROJ-1 | Auth & Rollen | ✅ Deployed | 2026-06-18 |
+| PROJ-11 | Kundendetailseite | ✅ Deployed | 2026-07-02 |
+| PROJ-14 | Umsatz-Service-Icon Fix | ✅ Deployed | 2026-07-02 |
+| PROJ-15 | Vorjahresvergleich + Ansichten | ✅ Deployed | 2026-07-02 |
+| PROJ-16 | Gestapeltes AreaChart | ✅ Deployed | 2026-07-02 |
+| PROJ-17 | Auftrags-Default im Kunden-Detail | ✅ Deployed | 2026-07-03 |
+| PROJ-18 | Globaler Header mit Navigation | ✅ Deployed | 2026-07-03 |
+| PROJ-19 | Auftragsverwaltung | ✅ Deployed | 2026-07-05 |
+| PROJ-20 | Logistik & Abholung | ✅ Deployed | 2026-07-06 |
+| PROJ-21 | Fahrer-Seite | ✅ Deployed | 2026-07-06 |
+| PROJ-22 | Kalender für blockierte Tage | ✅ Deployed | 2026-07-07 |
+| PROJ-28 | Hersteller-Verwaltung & Artikel-Zuordnung | ✅ Deployed | 2026-07-10 |
 
-| PROJ-20 | Kundendetail — Logistik & Abholung (Tab erweitern + nächste Abholung) | **Deployed** ✅ | [PROJ-20](PROJ-20-logistik-abholung.md) | 2026-07-06 |
-| PROJ-28 | Hersteller-Verwaltung & Artikel-Zuordnung | **Deployed** ✅ | [PROJ-28](PROJ-28-hersteller-verwaltung.md) | 2026-07-10 |
+## Architektur-Dokumente
 
-<!-- Add features above this line -->
+| Feature | Architektur |
+|---------|-------------|
+| PROJ-11 | PROJ-11-architektur.md |
+| PROJ-14 | PROJ-14-architektur.md |
+| PROJ-15 | PROJ-15-architektur.md |
+| PROJ-16 | PROJ-16-architektur.md |
+| PROJ-18 | PROJ-18-architektur.md |
+| PROJ-19 | PROJ-19-architektur.md |
+
+---
+
+## Workflow-Regeln (gültig ab 2026-06-30)
+
+```
+/init → /write-spec → User-Review ("approved") →
+/architecture → User-Review ("approved") →
+/frontend → /backend → /qa → /deploy
+```
+
+- Nach `/write-spec` und nach `/architecture` **IMMER** auf explizites "approved" vom User warten.
+- Ausnahme: **Trivialer Hotfix** — NUR wenn das Wort "Hotfix" explizit verwendet wird.
+- Vor jeder Code-Änderung: CLAUDE.md, docs/PRD.md und relevante Feature-Datei lesen.
+- Status in INDEX.md und Feature-Header immer synchron halten.
 
 ## Next Available ID: PROJ-29

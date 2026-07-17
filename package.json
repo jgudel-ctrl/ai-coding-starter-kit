@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:deploy": "playwright test --config=playwright.deploy.config.ts",
     "test:all": "vitest run && playwright test"
   },
   "dependencies": {
