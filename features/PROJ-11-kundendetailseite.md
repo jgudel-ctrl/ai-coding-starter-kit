@@ -476,4 +476,37 @@ bereits im Projekt vorhanden und werden nur wiederverwendet.
 
 ---
 
+## 14. Implementierungsnotizen — Backend (2026-07-17)
+
+**Berechtigungsprüfung (`service_role` GRANTs), statt Neubau der Abfrage:**
+- `tms.products` wird bereits von der deployten Hersteller-Verwaltung
+  (PROJ-28, `src/lib/actions/manufacturers.ts`) über denselben
+  `createAdminClient({ schema: "tms" })` gelesen **und beschrieben**
+  (`updateProductManufacturer`, `bulkUpdateProductManufacturers` — live in
+  Produktion). `tms.position_groups` wird dort ebenfalls gelesen
+  (`getPositionGroups`, `getProductById`). Da PROJ-28 produktiv läuft, hat
+  `service_role` für beide Tabellen bereits ausreichende Rechte — **keine
+  neue GRANT-Migration nötig** (anders als bei BUG-2, wo `invoice_items`/
+  `invoices` neu waren und noch keine Rechte hatten).
+- Trotzdem **im `/qa`-Schritt gegen die echte Datenbank verifizieren**
+  (Sandbox hat keinen DB-Zugriff): `SELECT * FROM tms.invoice_items ii JOIN
+  tms.products p ON p.number = ii.article_number LIMIT 1;` mit
+  `service_role` sollte Daten liefern, kein Permission-Fehler.
+
+**Auth-Pattern konsistent mit bestehendem Code:**
+- `getPartnerTradeOrders`/`getPartnerOrderGroupStats` haben — wie alle
+  anderen Read-Actions in `revenue.ts`/`contacts.ts` — keine eigene
+  Auth-Prüfung. Das ist konsistent: Routenschutz für `/kunden/[id]`
+  erfolgt zentral über `src/lib/supabase/middleware.ts` (nicht
+  angemeldet → Redirect `/login`). Keine Änderung nötig.
+
+**Tests:** Für Server Actions mit `createAdminClient`-Zugriff existiert im
+Projekt bisher keine Testinfrastruktur (nur `roles.test.ts` und
+`validations/auth.test.ts` für reine Logik, kein Supabase-Mocking-Muster).
+Ein neues Mocking-Setup nur für diese Erweiterung einzuführen wäre
+Over-Engineering — die Verifikation erfolgt stattdessen im `/qa`-Schritt
+gegen echte Daten (siehe Akzeptanzkriterien Abschnitt 4).
+
+---
+
 *Diese Spec folgt dem Workflow aus MEMORY.md: /init → /write-spec → User-Review → /architecture → /frontend → /backend → /qa → /deploy*
