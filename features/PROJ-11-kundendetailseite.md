@@ -456,4 +456,24 @@ bereits im Projekt vorhanden und werden nur wiederverwendet.
 
 ---
 
+## 13. Implementierungsnotizen — Frontend (2026-07-17)
+
+- `src/lib/actions/orders.ts`: `getPartnerTradeOrders` um `groupId`-Parameter,
+  `group_id`/`group_name` im Ergebnis erweitert; neue Action
+  `getPartnerOrderGroupStats(partnerId, search?)` für die Chart-/Dropdown-Daten.
+  Verknüpfung `invoice_items.article_number ↔ products.number` erfolgt
+  zweistufig in der App-Schicht (kein FK zwischen den Tabellen), analog zum
+  bestehenden Muster in `manufacturers.ts`.
+- Neue Komponente `order-group-chart.tsx` (Donut-Chart, Recharts,
+  Design-System-Chartfarben `#FF6B6D · #4ECDC4 · #7C6CFF · #F59F00 · #4DABF7 · #2FB344`).
+- `order-history-table.tsx` erweitert um Dropdown-Filter "Artikelgruppe" und
+  Einbindung des Donut-Charts; Filter-Zustand (`activeGroupId`) synchron
+  zwischen Chart, Dropdown und Tabellen-Query.
+- Typecheck (`tsc --noEmit`) und Production-Build (`npm run build`) laufen
+  fehlerfrei durch. **Kein Live-Browser-Test möglich** in dieser
+  Sandbox-Umgebung (keine `.env.local`/Supabase-Zugangsdaten vorhanden) —
+  muss im `/qa`-Schritt gegen echte Daten verifiziert werden.
+
+---
+
 *Diese Spec folgt dem Workflow aus MEMORY.md: /init → /write-spec → User-Review → /architecture → /frontend → /backend → /qa → /deploy*

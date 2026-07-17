@@ -5,6 +5,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -13,9 +20,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
-import { getPartnerTradeOrders } from "@/lib/actions/orders";
-import type { TradeOrderItem } from "@/lib/actions/orders";
+import { getPartnerTradeOrders, getPartnerOrderGroupStats } from "@/lib/actions/orders";
+import type { TradeOrderItem, OrderGroupStat } from "@/lib/actions/orders";
 import { OrderDetailModal } from "./order-detail-modal";
+import { OrderGroupChart } from "./order-group-chart";
 
 interface OrderHistoryTableProps {
   partnerId: string;
@@ -28,12 +36,21 @@ export function OrderHistoryTable({ partnerId }: OrderHistoryTableProps) {
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [activeGroupId, setActiveGroupId] = useState<number | null>(null);
+  const [groupStats, setGroupStats] = useState<OrderGroupStat[]>([]);
+  const [isGroupStatsLoading, setIsGroupStatsLoading] = useState(true);
   const pageSize = 20;
 
   useEffect(() => {
     async function loadOrders() {
       setIsLoading(true);
-      const result = await getPartnerTradeOrders(partnerId, page, pageSize, search || undefined);
+      const result = await getPartnerTradeOrders(
+        partnerId,
+        page,
+        pageSize,
+        search || undefined,
+        activeGroupId ?? undefined
+      );
       if (result.ok) {
         setOrders(result.items);
         setTotalCount(result.totalCount);
@@ -41,7 +58,24 @@ export function OrderHistoryTable({ partnerId }: OrderHistoryTableProps) {
       setIsLoading(false);
     }
     loadOrders();
-  }, [partnerId, page, search]);
+  }, [partnerId, page, search, activeGroupId]);
+
+  useEffect(() => {
+    async function loadGroupStats() {
+      setIsGroupStatsLoading(true);
+      const result = await getPartnerOrderGroupStats(partnerId, search || undefined);
+      if (result.ok) {
+        setGroupStats(result.data);
+      }
+      setIsGroupStatsLoading(false);
+    }
+    loadGroupStats();
+  }, [partnerId, search]);
+
+  const handleSelectGroup = (groupId: number | null) => {
+    setActiveGroupId(groupId);
+    setPage(1);
+  };
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
@@ -64,22 +98,54 @@ export function OrderHistoryTable({ partnerId }: OrderHistoryTableProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
+        className="mb-4"
+      >
+        <OrderGroupChart
+          stats={groupStats}
+          activeGroupId={activeGroupId}
+          onSelectGroup={handleSelectGroup}
+          isLoading={isGroupStatsLoading}
+        />
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
         className="rounded-lg border bg-card shadow-sm"
       >
         <div className="p-4 border-b">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <h3 className="font-semibold text-lg">Bestellhistorie — Handelsware</h3>
-            <div className="relative w-full sm:w-auto">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Artikel oder Artikelnr. suchen..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="pl-9 w-full sm:w-[300px]"
-              />
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Select
+                value={activeGroupId ? String(activeGroupId) : "all"}
+                onValueChange={(value) => handleSelectGroup(value === "all" ? null : Number(value))}
+              >
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder="Artikelgruppe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Artikelgruppen</SelectItem>
+                  {groupStats.map((g) => (
+                    <SelectItem key={g.group_id} value={String(g.group_id)}>
+                      {g.group_name} ({g.count})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="relative w-full sm:w-auto">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Artikel oder Artikelnr. suchen..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-9 w-full sm:w-[300px]"
+                />
+              </div>
             </div>
           </div>
         </div>
