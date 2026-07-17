@@ -28,6 +28,7 @@
 | PROJ-22 | Kalender für blockierte Tage | ✅ Deployed | 2026-07-07 |
 | PROJ-28 | Hersteller-Verwaltung & Artikel-Zuordnung | ✅ Deployed | 2026-07-10 |
 | BUG-3 | RLS-Lücke — anon-Zugriff auf products & customer_groups | ✅ Deployed | 2026-07-17 |
+| BUG-4 | Privilege Escalation über user_metadata (Partner-Tabellen) | ✅ Deployed | 2026-07-17 |
 
 ## Architektur-Dokumente
 

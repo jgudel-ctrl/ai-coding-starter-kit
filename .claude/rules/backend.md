@@ -13,6 +13,7 @@ paths:
 - Add indexes on columns used in WHERE, ORDER BY, and JOIN clauses
 - Use foreign keys with ON DELETE CASCADE where appropriate
 - Never skip RLS - security first
+- NEVER use `user_metadata` (JWT claim / `raw_user_meta_data`) in RLS policies for authorization decisions — it's editable by the user themselves via `auth.updateUser()` and allows self-privilege-escalation (siehe BUG-4). Always check `public.profiles.roles` (server-side) instead, or `app_metadata` if JWT claims are unavoidable.
 
 ## API Routes
 - Validate all inputs using Zod schemas before processing
