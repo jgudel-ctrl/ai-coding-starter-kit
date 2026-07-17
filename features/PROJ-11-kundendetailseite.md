@@ -509,4 +509,135 @@ gegen echte Daten (siehe Akzeptanzkriterien Abschnitt 4).
 
 ---
 
+## QA Test Results — Erweiterung Bestellhistorie (Produkttyp/Gruppierung/Donut-Chart)
+
+**Getestet:** 2026-07-17
+**App-URL:** nicht erreichbar (keine `.env.local`/Supabase-Zugangsdaten in dieser
+Sandbox — kein Login, kein Live-Browser-Test möglich)
+**Tester:** QA Engineer (KI)
+
+**Wichtiger Hinweis:** Ein echter Browser-Test gegen die Live-Anwendung
+(`tms.gudel-werkzeuge.de` bzw. `localhost:3000` mit echten Kundendaten)
+konnte in dieser Umgebung **nicht durchgeführt werden**. Stattdessen wurde
+geprüft: Typecheck, Production-Build, automatisierte Unit-Tests, statische
+Sicherheits-/Code-Review sowie Erstellung der E2E-Testsuite (unausgeführt).
+**Alle unten als "ungeprüft" markierten Punkte müssen vor `/deploy` real
+verifiziert werden** (z.B. während des `/deploy`-Skripts, das ohnehin einen
+Playwright-Smoke-Test gegen die Live-URL fährt — dort aber nur Basis-Login,
+nicht diese Feature-Details).
+
+### Automatisierte Tests
+- `npx tsc --noEmit`: ✅ keine Fehler
+- `npm run build`: ✅ erfolgreich (Turbopack, alle Routen kompilieren)
+- `npx vitest run src/`: ✅ 19/19 Tests grün (inkl. 4 neue Tests für
+  `buildGroupStats` in `src/lib/actions/orders-helpers.test.ts`)
+- **Vorbestehendes Problem gefunden (nicht durch dieses Feature verursacht):**
+  `npm test` (= `vitest run`, ohne Pfad-Filter) versucht auch die
+  Playwright-Specs unter `tests/` auszuführen und schlägt dort fehl, weil
+  `vitest.config.ts` das `tests/`-Verzeichnis nicht ausschließt. Betrifft
+  `tests/tms-kunden.spec.ts` und `tests/deploy/smoke.spec.ts` — beide
+  bereits vor dieser Änderung vorhanden. **Nicht blockierend für PROJ-11**,
+  sollte aber unabhängig behoben werden (Vorschlag: `exclude: ['tests/**']`
+  in `vitest.config.ts`).
+- Neue E2E-Testsuite `tests/PROJ-11-bestellhistorie-gruppen.spec.ts`
+  geschrieben (3 Szenarien: Chart zeigt Gruppen, Klick filtert + synchronisiert
+  Dropdown + Toggle, Dropdown "Alle" setzt zurück). `npx playwright test
+  --list` bestätigt: Datei ist syntaktisch korrekt, 6 Testläufe
+  (Chromium + Mobile Safari) werden erkannt. **Nicht ausgeführt** — erfordert
+  echten Testkunden (`PROJ11_TEST_KUNDE_ID`) mit mehreren Artikelgruppen und
+  echte Login-Zugangsdaten.
+
+### Akzeptanzkriterien-Status (Abschnitt 4, "Bestellhistorie")
+
+- [ ] **UNGEPRÜFT** (Live-Daten nötig) — Nur Positionen mit `products.type = 'PRODUCT'` werden angezeigt
+- [ ] **UNGEPRÜFT** — Donut-Chart zeigt genau die vorkommenden Artikelgruppen
+- [ ] **UNGEPRÜFT** — Donut-Chart-Segment = Anzahl Bestellpositionen
+- [x] Klick-Toggle-Logik statisch geprüft (Code: `activeGroupId === groupId ? null : groupId`) — korrekt
+- [x] Dropdown/Chart-Synchronisierung statisch geprüft (gemeinsamer State `activeGroupId`) — korrekt
+- [ ] **UNGEPRÜFT** — Dropdown zeigt "Alle" zum Zurücksetzen (Code vorhanden, Live-Verhalten offen)
+- [ ] **UNGEPRÜFT** — Leerzustand bei Kunde ohne `type=PRODUCT`-Positionen
+
+### Gefundene Bugs
+
+#### BUG-1: `groupId = 0` würde durch Truthy-Check ignoriert
+- **Severity:** Low
+- **Fundort:** `src/lib/actions/orders.ts`, `getProductGroupMap()`:
+  `if (groupId) { query = query.eq("group_id", groupId); }`
+- **Szenario:** Falls `tms.position_groups.id` jemals den Wert `0` annehmen
+  könnte, würde der Gruppenfilter für genau diese Gruppe stillschweigend
+  ignoriert (alle Gruppen würden angezeigt statt nur Gruppe 0).
+- **Einschätzung:** Aktuell wahrscheinlich harmlos, da Postgres
+  Identity/Serial-Spalten i.d.R. bei 1 starten — aber nicht verifiziert.
+- **Fix-Vorschlag:** `if (groupId !== undefined)` statt Truthy-Check.
+- **Priorität:** Vor Deployment beheben (einzeilig, geringes Risiko).
+
+#### BUG-2: Suchbegriff unescaped in PostgREST `.or()`-Filter (zweite Fundstelle)
+- **Severity:** Medium
+- **Fundort:** `getPartnerTradeOrders` UND neu `getPartnerOrderGroupStats` in
+  `orders.ts`: `query.or(\`description.ilike.%${search}%,article_number.ilike.%${search}%\`)`
+- **Szenario:** Der Suchbegriff wird ungeprüft in die PostgREST-Filter-DSL
+  eingebettet. Enthält er Zeichen wie `,` oder `)`, kann die Filterlogik
+  verändert werden (zusätzliche OR-Bedingungen). Dieses Muster existierte
+  bereits vor dieser Erweiterung in `getPartnerTradeOrders` (nicht neu
+  eingeführt), wurde durch diese Erweiterung aber in eine zweite Funktion
+  übernommen.
+- **Blast Radius begrenzt:** Der äußere `partner_id`- und
+  `revenue_category`-Filter bleiben als separate AND-Bedingungen bestehen —
+  ein Angreifer kann also nicht auf fremde Kundendaten zugreifen, nur
+  innerhalb der eigenen Kundendaten zusätzliche Zeilen sichtbar machen.
+- **Fix-Vorschlag:** Suchbegriff vor dem Einbetten escapen (Kommas/Klammern)
+  oder auf `%`/Wildcard-Zeichen beschränken.
+- **Priorität:** Sollte behoben werden, ist aber kein Blocker (vorbestehendes
+  Muster, begrenzter Blast Radius).
+
+#### BUG-3 (Regressionsrisiko, kein Bug im engeren Sinn): Weniger Zeilen als vorher möglich
+- **Severity:** Medium (Business-Impact, kein Code-Fehler)
+- **Beschreibung:** Vor dieser Erweiterung wurden ALLE
+  `revenue_category = 'trade_goods'`-Positionen angezeigt. Jetzt zusätzlich
+  nur die, deren `article_number` einen Treffer in `tms.products` mit
+  `type = 'PRODUCT'` hat. Positionen mit fehlendem oder falsch klassifiziertem
+  Artikel-Stammdatensatz verschwinden dadurch aus der Bestellhistorie —
+  das war eine bewusste Entscheidung (siehe Decision Log), aber die
+  tatsächliche Auswirkung auf reale Kundendaten wurde **nicht verifiziert**
+  (unbekannt, wie viele `article_number` in der Produktions-DB keinen
+  Treffer in `products` haben).
+- **Empfehlung:** Vor `/deploy` stichprobenartig bei 2–3 Bestandskunden
+  vergleichen: Zeilenzahl vorher vs. nachher, um unerwarteten Datenverlust
+  in der Anzeige auszuschließen.
+
+### Security-Audit (statisch, Red-Team-Perspektive)
+- [x] Auth: Route `/kunden/[id]` durch Middleware geschützt (kein Login →
+  Redirect `/login`) — unverändert durch dieses Feature
+- [x] Autorisierung: Gleiches Modell wie der Rest der App (jeder
+  authentifizierte interne Mitarbeiter sieht jede Kunden-ID) — kein neues
+  Datenleck durch diese Erweiterung eingeführt
+- [x] XSS: Alle neuen Ausgaben (`group_name`, Zähler) laufen durch normales
+  React-Rendering, kein `dangerouslySetInnerHTML` — kein neues Risiko
+- [ ] Input-Validierung: siehe BUG-2 (Suchbegriff-Escaping)
+- [x] Keine neuen Secrets/Keys im Client-Code sichtbar (Service-Role-Key
+  bleibt serverseitig in `orders.ts`, `"use server"`)
+
+### Performance-Hinweis (nicht als Bug gewertet, zur Kenntnis)
+`getProductGroupMap()` lädt bei jedem Aufruf ALLE `type='PRODUCT'`-Artikel
+(unabhängig vom Kunden) in den Speicher, um die Nummer-zu-Gruppe-Zuordnung zu
+bauen. Bei einem sehr großen Artikelkatalog (mehrere Zehntausend Artikel)
+könnte das spürbar werden. Aktuell unbekannt, wie groß `tms.products` in
+Produktion ist — im `/qa`-Live-Test oder spätestens bei Performance-Monitoring
+nach Deploy beobachten.
+
+### Zusammenfassung
+- **Akzeptanzkriterien:** 2/7 statisch bestätigt, 5/7 ungeprüft (Live-Daten
+  nötig), 0 fehlgeschlagen
+- **Bugs gefunden:** 3 (0 Critical, 0 High, 2 Medium, 1 Low)
+- **Security:** keine kritischen Funde; ein bekanntes, vorbestehendes
+  Escaping-Muster verdient Nachbesserung (Medium)
+- **Production-Ready:** **NOT READY** — nicht wegen gefundener Bugs, sondern
+  weil die Kernfunktionalität (Chart-Zahlen, Gruppen-Filter, Leerzustand)
+  mangels Datenbankzugriff in dieser Sandbox nicht gegen echte Daten
+  verifiziert werden konnte. Empfehlung: einmaligen Live-Test mit einem
+  echten Kunden (mehrere Artikelgruppen) vor `/deploy` durchführen, dann
+  BUG-1 (einzeilig) beheben, BUG-2 optional vorab oder danach.
+
+---
+
 *Diese Spec folgt dem Workflow aus MEMORY.md: /init → /write-spec → User-Review → /architecture → /frontend → /backend → /qa → /deploy*

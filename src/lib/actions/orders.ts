@@ -1,6 +1,9 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { buildGroupStats, type OrderGroupStat, type ProductGroupInfo } from "./orders-helpers";
+
+export type { OrderGroupStat };
 
 export interface TradeOrderItem {
   document_date: string;
@@ -14,12 +17,6 @@ export interface TradeOrderItem {
   purchase_price: number | null;
   group_id: number | null;
   group_name: string | null;
-}
-
-export interface OrderGroupStat {
-  group_id: number;
-  group_name: string;
-  count: number;
 }
 
 /**
@@ -58,7 +55,7 @@ async function getProductGroupMap(
     }
   }
 
-  const numberToGroup = new Map<string, { group_id: number | null; group_name: string | null }>();
+  const numberToGroup = new Map<string, ProductGroupInfo>();
   for (const p of products || []) {
     numberToGroup.set(p.number, {
       group_id: p.group_id ?? null,
@@ -195,20 +192,10 @@ export async function getPartnerOrderGroupStats(partnerId: string, search?: stri
     const { data, error } = await query;
     if (error) throw error;
 
-    const counts = new Map<number, { group_name: string; count: number }>();
-    for (const item of data || []) {
-      const group = numberToGroup.get((item as any).article_number || "");
-      if (!group?.group_id || !group.group_name) continue; // ohne Gruppe -> nicht im Chart/Dropdown
-      const existing = counts.get(group.group_id);
-      counts.set(group.group_id, {
-        group_name: group.group_name,
-        count: (existing?.count ?? 0) + 1,
-      });
-    }
-
-    const stats: OrderGroupStat[] = [...counts.entries()]
-      .map(([group_id, v]) => ({ group_id, group_name: v.group_name, count: v.count }))
-      .sort((a, b) => b.count - a.count);
+    const stats = buildGroupStats(
+      (data || []).map((item: any) => item.article_number),
+      numberToGroup
+    );
 
     return { ok: true, data: stats } as const;
   } catch (err) {
