@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient, getCurrentProfile } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/roles";
 
 /* ═══════════════════════════════════════════
@@ -25,6 +25,27 @@ export type ProductWithManufacturer = {
   manufacturer_id: string | null;
   manufacturer_name: string | null;
   type: string;
+  group_id: number | null;
+  group_name: string | null;
+  group_number: string | null;
+  cost_price: number | null;
+  sale_price: number | null;
+  vat_percent: number | null;
+  unit: string | null;
+  archived: boolean;
+  created_at: string;
+};
+
+export type PositionGroup = {
+  id: number;
+  name: string;
+  number: string | null;
+  display_name: string | null;
+};
+
+export type ProductStatsByType = {
+  type: string;
+  count: number;
 };
 
 export type ImportResult = {
@@ -45,6 +66,7 @@ async function requireAdmin(): Promise<boolean> {
 
 /* ═══════════════════════════════════════════
    1) Hersteller importieren (einmalig)
+   Nutzt DB-Funktion für zuverlässiges DISTINCT
    ═══════════════════════════════════════════ */
 
 export async function importManufacturers(): Promise<
@@ -55,132 +77,28 @@ export async function importManufacturers(): Promise<
   }
 
   try {
-    const admin = createAdminClient();
+    const supabase = createAdminClient({ schema: "tms" });
 
-    // 1a) Alle distinct Hersteller-Namen aus Easybill-JSON extrahieren
-    const { data: distinctNotes, error: notesError } = await admin
-      .from("products")
-      .select("raw_easybill_payload->>note" as any)
-      .eq("type", "PRODUCT")
-      .not("raw_easybill_payload->>note", "is", null)
-      .not("raw_easybill_payload->>note", "eq", "")
-      .order("raw_easybill_payload->>note" as any);
+    // Nutze die DB-Funktion (verwendet DISTINCT + Filter)
+    const { data, error } = await supabase
+      .rpc("import_manufacturers_from_easybill");
 
-    if (notesError) throw notesError;
+    if (error) throw error;
 
-    // Normalisierung: Trim + Capitalize (erster Buchstabe groß, Rest klein)
-    const nameSet = new Set<string>();
-    for (const row of distinctNotes || []) {
-      const rawName = (row as any).note;
-      if (!rawName) continue;
-      const normalized = rawName.trim();
-      if (normalized) nameSet.add(normalized);
-    }
-
-    const manufacturerNames = Array.from(nameSet).sort();
-
-    // 1b) Existierende Hersteller abfragen (um Duplikate zu vermeiden)
-    const { data: existingManufacturers, error: existingError } = await admin
-      .from("manufacturers")
-      .select("name");
-
-    if (existingError) throw existingError;
-
-    const existingNames = new Set(
-      (existingManufacturers || []).map((m) => m.name)
-    );
-
-    // 1c) Neue Hersteller anlegen
-    const newNames = manufacturerNames.filter((n) => !existingNames.has(n));
-    let manufacturersCreated = 0;
-
-    if (newNames.length > 0) {
-      const { error: insertError } = await admin
-        .from("manufacturers")
-        .insert(newNames.map((name) => ({ name })));
-
-      if (insertError) throw insertError;
-      manufacturersCreated = newNames.length;
-    }
-
-    // 1d) Alle Hersteller laden (inkl. neu angelegter)
-    const { data: allManufacturers, error: allError } = await admin
-      .from("manufacturers")
-      .select("id, name");
-
-    if (allError) throw allError;
-
-    const manufacturerMap = new Map<string, string>();
-    for (const m of allManufacturers || []) {
-      manufacturerMap.set(m.name, m.id);
-    }
-
-    // 1e) Produkte verknüpfen
-    // Wir holen alle Produkte mit Hersteller-Name, die noch keine manufacturer_id haben
-    const { data: productsToLink, error: productsError } = await admin
-      .from("products")
-      .select("id, raw_easybill_payload->>note")
-      .eq("type", "PRODUCT")
-      .is("manufacturer_id", null)
-      .not("raw_easybill_payload->>note", "is", null)
-      .not("raw_easybill_payload->>note", "eq", "");
-
-    if (productsError) throw productsError;
-
-    let productsLinked = 0;
-    const updates: { id: string; manufacturer_id: string }[] = [];
-
-    for (const row of productsToLink || []) {
-      const rawName = (row as any).note;
-      if (!rawName) continue;
-      const normalized = rawName.trim();
-      const manufacturerId = manufacturerMap.get(normalized);
-      if (manufacturerId) {
-        updates.push({ id: row.id, manufacturer_id: manufacturerId });
-      }
-    }
-
-    // Batch-Update (Supabase erlaubt keine echte Batch-Update, daher RPC)
-    // Wir machen es in Chunks von 500
-    const chunkSize = 500;
-    for (let i = 0; i < updates.length; i += chunkSize) {
-      const chunk = updates.slice(i, i + chunkSize);
-      const ids = chunk.map((u) => u.id);
-      const manufacturerId = chunk[0].manufacturer_id; // Alle im Chunk haben denselben Hersteller
-
-      const { error: updateError } = await admin
-        .from("products")
-        .update({ manufacturer_id: manufacturerId })
-        .in(
-          "id",
-          ids
-        );
-
-      if (updateError) throw updateError;
-      productsLinked += chunk.length;
-    }
-
-    // 1f) Artikel ohne Hersteller zählen
-    const { count: withoutCount, error: countError } = await admin
-      .from("products")
-      .select("id", { count: "exact", head: true })
-      .eq("type", "PRODUCT")
-      .is("manufacturer_id", null);
-
-    if (countError) throw countError;
+    const rawResult = data as any;
+    const result: ImportResult = Array.isArray(rawResult)
+      ? (rawResult[0] as ImportResult)
+      : (rawResult as ImportResult) ?? {
+          manufacturers_created: 0,
+          manufacturers_skipped: 0,
+          products_linked: 0,
+          products_without_manufacturer: 0,
+        };
 
     revalidatePath("/verwaltung/hersteller");
     revalidatePath("/verwaltung/artikel");
 
-    return {
-      ok: true,
-      data: {
-        manufacturers_created: manufacturersCreated,
-        manufacturers_skipped: manufacturerNames.length - manufacturersCreated,
-        products_linked: productsLinked,
-        products_without_manufacturer: withoutCount || 0,
-      },
-    };
+    return { ok: true, data: result };
   } catch (err) {
     console.error("Import-Hersteller-Fehler:", err);
     return {
@@ -198,59 +116,17 @@ export async function getManufacturers(): Promise<
   { ok: true; data: Manufacturer[] } | { ok: false; error: string }
 > {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient({ schema: "tms" });
 
+    // Zählung direkt in der Datenbank — kein 1.000-Limit-Problem
     const { data, error } = await supabase
-      .from("manufacturers")
-      .select("*")
-      .order("name");
+      .rpc("get_manufacturers_with_counts");
 
     if (error) throw error;
 
-    // Artikel-Anzahl pro Hersteller holen
-    const admin = createAdminClient();
-    const { data: counts, error: countError } = await admin.rpc(
-      "get_manufacturer_product_counts",
-      {}
-    );
-
-    if (countError) {
-      // Fallback: Manuelle Zählung
-      const { data: products, error: prodError } = await admin
-        .from("products")
-        .select("manufacturer_id");
-
-      if (prodError) throw prodError;
-
-      const countMap = new Map<string, number>();
-      for (const p of products || []) {
-        if (p.manufacturer_id) {
-          countMap.set(
-            p.manufacturer_id,
-            (countMap.get(p.manufacturer_id) || 0) + 1
-          );
-        }
-      }
-
-      const manufacturers = (data || []).map((m) => ({
-        ...m,
-        product_count: countMap.get(m.id) || 0,
-      }));
-
-      return { ok: true, data: manufacturers };
-    }
-
-    // Wenn RPC funktioniert
-    const countMap = new Map<string, number>();
-    if (Array.isArray(counts)) {
-      for (const c of counts) {
-        countMap.set(c.manufacturer_id, parseInt(c.count, 10));
-      }
-    }
-
-    const manufacturers = (data || []).map((m) => ({
+    const manufacturers = (data || []).map((m: any) => ({
       ...m,
-      product_count: countMap.get(m.id) || 0,
+      product_count: Number(m.product_count || 0),
     }));
 
     return { ok: true, data: manufacturers };
@@ -279,10 +155,10 @@ export async function createManufacturer(
   }
 
   try {
-    const admin = createAdminClient();
+    const supabase = createAdminClient({ schema: "tms" });
 
     // Prüfen ob Name schon existiert
-    const { data: existing } = await admin
+    const { data: existing } = await supabase
       .from("manufacturers")
       .select("id")
       .eq("name", trimmedName)
@@ -292,7 +168,7 @@ export async function createManufacturer(
       return { ok: false, error: `Hersteller "${trimmedName}" existiert bereits.` };
     }
 
-    const { data, error } = await admin
+    const { data, error } = await supabase
       .from("manufacturers")
       .insert({ name: trimmedName, notes: notes?.trim() || null })
       .select()
@@ -333,10 +209,10 @@ export async function updateManufacturer(
   }
 
   try {
-    const admin = createAdminClient();
+    const supabase = createAdminClient({ schema: "tms" });
 
     // Prüfen ob Name schon bei anderem Hersteller existiert
-    const { data: existing } = await admin
+    const { data: existing } = await supabase
       .from("manufacturers")
       .select("id")
       .eq("name", trimmedName)
@@ -347,7 +223,7 @@ export async function updateManufacturer(
       return { ok: false, error: `Hersteller "${trimmedName}" existiert bereits.` };
     }
 
-    const { data, error } = await admin
+    const { data, error } = await supabase
       .from("manufacturers")
       .update({ name: trimmedName, notes: notes?.trim() || null })
       .eq("id", id)
@@ -380,10 +256,10 @@ export async function deleteManufacturer(
   }
 
   try {
-    const admin = createAdminClient();
+    const supabase = createAdminClient({ schema: "tms" });
 
     // Prüfen ob Artikel verknüpft sind
-    const { count, error: countError } = await admin
+    const { count, error: countError } = await supabase
       .from("products")
       .select("id", { count: "exact", head: true })
       .eq("manufacturer_id", id);
@@ -397,7 +273,7 @@ export async function deleteManufacturer(
       };
     }
 
-    const { error } = await admin
+    const { error } = await supabase
       .from("manufacturers")
       .delete()
       .eq("id", id);
@@ -423,7 +299,9 @@ export async function deleteManufacturer(
 
 export async function getProducts(filters?: {
   manufacturerId?: string | null;
+  groupId?: number | null;
   search?: string;
+  type?: "PRODUCT" | "SERVICE" | "all";
   page?: number;
   pageSize?: number;
 }): Promise<
@@ -434,23 +312,35 @@ export async function getProducts(filters?: {
   } | { ok: false; error: string }
 > {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient({ schema: "tms" });
     const page = filters?.page ?? 1;
     const pageSize = filters?.pageSize ?? 50;
     const offset = (page - 1) * pageSize;
 
     let query = supabase
       .from("products")
-      .select("id, number, description, manufacturer_id, type", {
-        count: "exact",
-      })
-      .eq("type", "PRODUCT")
+      .select(
+        "id, number, description, manufacturer_id, type, group_id, cost_price, sale_price, vat_percent, unit, archived, created_at",
+        { count: "exact" }
+      )
       .range(offset, offset + pageSize - 1);
+
+    // Typ-Filter
+    const typeFilter = filters?.type ?? "PRODUCT";
+    if (typeFilter !== "all") {
+      query = query.eq("type", typeFilter);
+    }
 
     if (filters?.manufacturerId) {
       query = query.eq("manufacturer_id", filters.manufacturerId);
     } else if (filters?.manufacturerId === null) {
       query = query.is("manufacturer_id", null);
+    }
+
+    if (filters?.groupId) {
+      query = query.eq("group_id", filters.groupId);
+    } else if (filters?.groupId === null) {
+      query = query.is("group_id", null);
     }
 
     if (filters?.search) {
@@ -463,9 +353,12 @@ export async function getProducts(filters?: {
 
     if (error) throw error;
 
-    // Hersteller-Namen holen
+    // Hersteller-Namen + Gruppen-Namen holen
     const manufacturerIds = [
-      ...new Set((data || []).map((p) => p.manufacturer_id).filter(Boolean)),
+      ...new Set((data || []).map((p: any) => p.manufacturer_id).filter(Boolean)),
+    ];
+    const groupIds = [
+      ...new Set((data || []).map((p: any) => p.group_id).filter(Boolean)),
     ];
 
     let nameMap = new Map<string, string>();
@@ -480,9 +373,23 @@ export async function getProducts(filters?: {
       }
     }
 
-    const products = (data || []).map((p) => ({
+    let groupMap = new Map<number, { name: string; number: string | null }>();
+    if (groupIds.length > 0) {
+      const { data: groups } = await supabase
+        .from("position_groups")
+        .select("id, name, number")
+        .in("id", groupIds);
+
+      for (const g of groups || []) {
+        groupMap.set(g.id, { name: g.name, number: g.number });
+      }
+    }
+
+    const products = (data || []).map((p: any) => ({
       ...p,
       manufacturer_name: nameMap.get(p.manufacturer_id || "") || null,
+      group_name: p.group_id ? groupMap.get(p.group_id)?.name ?? null : null,
+      group_number: p.group_id ? groupMap.get(p.group_id)?.number ?? null : null,
     }));
 
     return {
@@ -499,6 +406,124 @@ export async function getProducts(filters?: {
   }
 }
 
+export async function getProductById(
+  id: string
+): Promise<
+  { ok: true; data: ProductWithManufacturer } | { ok: false; error: string }
+> {
+  try {
+    const supabase = createAdminClient({ schema: "tms" });
+
+    const { data, error } = await supabase
+      .from("products")
+      .select(
+        "id, number, description, manufacturer_id, type, group_id, cost_price, sale_price, vat_percent, unit, archived, created_at"
+      )
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+    if (!data) return { ok: false, error: "Artikel nicht gefunden." };
+
+    // Hersteller-Name
+    let manufacturer_name: string | null = null;
+    if (data.manufacturer_id) {
+      const { data: m } = await supabase
+        .from("manufacturers")
+        .select("name")
+        .eq("id", data.manufacturer_id)
+        .single();
+      manufacturer_name = m?.name ?? null;
+    }
+
+    // Gruppen-Name
+    let group_name: string | null = null;
+    let group_number: string | null = null;
+    if (data.group_id) {
+      const { data: g } = await supabase
+        .from("position_groups")
+        .select("name, number")
+        .eq("id", data.group_id)
+        .single();
+      group_name = g?.name ?? null;
+      group_number = g?.number ?? null;
+    }
+
+    return {
+      ok: true,
+      data: {
+        ...data,
+        manufacturer_name,
+        group_name,
+        group_number,
+      },
+    };
+  } catch (err) {
+    console.error("Artikel-Detail Fehler:", err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Fehler beim Laden des Artikels.",
+    };
+  }
+}
+
+export async function getProductStatsByType(): Promise<
+  { ok: true; data: ProductStatsByType[] } | { ok: false; error: string }
+> {
+  try {
+    const supabase = createAdminClient({ schema: "tms" });
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("type")
+      .eq("archived", false);
+
+    if (error) throw error;
+
+    const counts = new Map<string, number>();
+    for (const row of data || []) {
+      const t = row.type || "UNKNOWN";
+      counts.set(t, (counts.get(t) || 0) + 1);
+    }
+
+    const stats: ProductStatsByType[] = [];
+    counts.forEach((count, type) => {
+      stats.push({ type, count });
+    });
+
+    return { ok: true, data: stats };
+  } catch (err) {
+    console.error("Artikel-Statistik Fehler:", err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Fehler beim Laden der Statistik.",
+    };
+  }
+}
+
+export async function getPositionGroups(): Promise<
+  { ok: true; data: PositionGroup[] } | { ok: false; error: string }
+> {
+  try {
+    const supabase = createAdminClient({ schema: "tms" });
+
+    const { data, error } = await supabase
+      .from("position_groups")
+      .select("id, name, number, display_name")
+      .order("number", { ascending: true });
+
+    if (error) throw error;
+
+    return { ok: true, data: data || [] };
+  } catch (err) {
+    console.error("Rabattgruppen laden Fehler:", err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Fehler beim Laden der Gruppen.",
+    };
+  }
+}
+
 export async function updateProductManufacturer(
   productId: string,
   manufacturerId: string | null
@@ -508,9 +533,9 @@ export async function updateProductManufacturer(
   }
 
   try {
-    const admin = createAdminClient();
+    const supabase = createAdminClient({ schema: "tms" });
 
-    const { error } = await admin
+    const { error } = await supabase
       .from("products")
       .update({ manufacturer_id: manufacturerId })
       .eq("id", productId);
@@ -542,9 +567,9 @@ export async function bulkUpdateProductManufacturers(
   }
 
   try {
-    const admin = createAdminClient();
+    const supabase = createAdminClient({ schema: "tms" });
 
-    const { error } = await admin
+    const { error } = await supabase
       .from("products")
       .update({ manufacturer_id: manufacturerId })
       .in("id", productIds);

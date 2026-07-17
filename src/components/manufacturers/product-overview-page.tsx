@@ -3,24 +3,31 @@
 import { useState, useCallback, useTransition } from "react";
 import { toast } from "sonner";
 import { ProductTable } from "@/components/manufacturers/product-table";
+import { ProductChart } from "@/components/manufacturers/product-chart";
+import { TypeToggle } from "@/components/manufacturers/type-toggle";
+import { ProductDetailModal } from "@/components/manufacturers/product-detail-modal";
 import {
   getProducts,
   updateProductManufacturer,
   bulkUpdateProductManufacturers,
   type ProductWithManufacturer,
   type Manufacturer,
+  type PositionGroup,
+  type ProductStatsByType,
 } from "@/lib/actions/manufacturers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package } from "lucide-react";
 
 /* ═══════════════════════════════════════════
-   Artikel-Übersicht mit Hersteller
+   Artikel-Übersicht mit Mobile + Chart + Modal
    ═══════════════════════════════════════════ */
 
 type ProductOverviewPageProps = {
   initialProducts: ProductWithManufacturer[];
   initialTotal: number;
   initialManufacturers: Manufacturer[];
+  initialGroups: PositionGroup[];
+  initialStats: ProductStatsByType[];
   isAdmin: boolean;
 };
 
@@ -28,17 +35,26 @@ export function ProductOverviewPage({
   initialProducts,
   initialTotal,
   initialManufacturers,
+  initialGroups,
+  initialStats,
   isAdmin,
 }: ProductOverviewPageProps) {
   const [products, setProducts] = useState(initialProducts);
   const [total, setTotal] = useState(initialTotal);
+  const [stats, setStats] = useState(initialStats);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<{
     manufacturerId?: string | null;
+    groupId?: number | null;
     search?: string;
-  }>({});
+    type?: "PRODUCT" | "SERVICE" | "all";
+  }>({ type: "PRODUCT" });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
+
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalIndex, setModalIndex] = useState(0);
 
   const refresh = useCallback(
     async (newPage?: number, newFilters?: typeof filters) => {
@@ -65,13 +81,14 @@ export function ProductOverviewPage({
   );
 
   const handleFilterChange = useCallback(
-    (newFilters: typeof filters) => {
+    (newFilters: Partial<typeof filters>) => {
+      const merged = { ...filters, ...newFilters };
       startTransition(() => {
-        setFilters(newFilters);
-        refresh(1, newFilters);
+        setFilters(merged);
+        refresh(1, merged);
       });
     },
-    [refresh]
+    [refresh, filters]
   );
 
   const handlePageChange = useCallback(
@@ -126,16 +143,36 @@ export function ProductOverviewPage({
     }
   };
 
+  // Modal Navigation
+  const handleProductClick = (index: number) => {
+    setModalIndex(index);
+    setModalOpen(true);
+  };
+
+  const handleModalNavigate = (index: number) => {
+    setModalIndex(index);
+  };
+
   return (
     <div className="container mx-auto py-6 max-w-5xl">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Package className="h-6 w-6 text-primary" />
-            <CardTitle>Artikel-Übersicht</CardTitle>
+            <CardTitle>Artikel-Verwaltung</CardTitle>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Chart */}
+          <ProductChart stats={stats} />
+
+          {/* Typ-Toggle */}
+          <TypeToggle
+            value={filters.type || "PRODUCT"}
+            onChange={(type) => handleFilterChange({ type })}
+          />
+
+          {/* Tabelle / Mobile-Karten */}
           <ProductTable
             products={products}
             total={total}
@@ -143,6 +180,7 @@ export function ProductOverviewPage({
             pageSize={50}
             loading={isPending}
             manufacturers={initialManufacturers}
+            groups={initialGroups}
             selectedIds={selectedIds}
             onSelectId={handleSelectId}
             onSelectAll={handleSelectAll}
@@ -151,10 +189,20 @@ export function ProductOverviewPage({
             onBulkManufacturerChange={handleBulkManufacturerChange}
             filters={filters}
             onFilterChange={handleFilterChange}
+            onProductClick={handleProductClick}
             isAdmin={isAdmin}
           />
         </CardContent>
       </Card>
+
+      {/* Detail-Modal */}
+      <ProductDetailModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        products={products}
+        currentIndex={modalIndex}
+        onNavigate={handleModalNavigate}
+      />
     </div>
   );
 }

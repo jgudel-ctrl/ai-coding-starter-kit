@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -194,11 +194,10 @@ export function ManufacturerModal({
   const [name, setName] = useState(manufacturer?.name || "");
   const [notes, setNotes] = useState(manufacturer?.notes || "");
 
-  // Reset wenn sich manufacturer ändert
-  useState(() => {
+  useEffect(() => {
     setName(manufacturer?.name || "");
     setNotes(manufacturer?.notes || "");
-  });
+  }, [manufacturer?.id]);
 
   const isEditing = !!manufacturer;
 
