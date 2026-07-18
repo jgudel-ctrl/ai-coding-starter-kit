@@ -16,7 +16,7 @@
 | ID | Name | Status | Letzte Änderung |
 |----|------|--------|-----------------|
 | PROJ-1 | Auth & Rollen | ✅ Deployed | 2026-06-18 |
-| PROJ-11 | Kundendetailseite | 🟠 In Review — Basis auf main deployed; Erweiterung (Bestellhistorie Gruppierung/Donut) am 2026-07-18 nach Live-Verifikation von Production zurückgerollt. Offen: BUG-5 (URI/Katalog) fixen, BUG-4-Crashfix + Lint-Migration liegen im Branch (Details siehe Spec „Deploy-Verlauf 2026-07-18") | 2026-07-18 |
+| PROJ-11 | Kundendetailseite | ✅ Deployed — Bestellhistorie-Erweiterung (Produkttyp-Filter, Gruppierung, Donut-Chart) am 2026-07-18 live verifiziert (Tabelle + Donut = 129 Positionen bei Bod'or KTM, Preise/Rechnungsnr./Filter korrekt). BUG-4/5/6 + Cent→Euro + Pagination behoben. Details: Spec „Deploy-Verlauf 2026-07-18" | 2026-07-18 |
 | PROJ-14 | Umsatz-Service-Icon Fix | ✅ Deployed | 2026-07-02 |
 | PROJ-15 | Vorjahresvergleich + Ansichten | ✅ Deployed | 2026-07-02 |
 | PROJ-16 | Gestapeltes AreaChart | ✅ Deployed | 2026-07-02 |

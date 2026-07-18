@@ -1,6 +1,6 @@
 # PROJ-11: Kundendetailseite (erweitert)
 
-**Status:** Basis Deployed (main) — Erweiterung (Bestellhistorie Produkttyp/Gruppierung/Donut-Chart) NICHT deployed, in Review; Production am 2026-07-18 auf sauberes main zurückgerollt (siehe Abschnitt „Deploy-Verlauf 2026-07-18")  
+**Status:** ✅ Deployed (2026-07-18) — Erweiterung (Bestellhistorie Produkttyp/Gruppierung/Donut-Chart) live auf tms.gudel-werkzeuge.de, gegen echte Kundendaten verifiziert (siehe Abschnitt „Deploy-Verlauf 2026-07-18")  
 **Projekt:** TMS 2.0  
 **Priorität:** Hoch  
 **Autor:** Klausi (KI-Entwickler)  
@@ -725,12 +725,32 @@ Rücksprache wieder von Production entfernt.
 - Umsatz-Tab: `Could not find the table 'tms.mv_partner_monthly_revenue' in the
   schema cache` → fehlende Materialized View. Eigenes Ticket wert.
 
-### Nächste Schritte (vor erneutem Deploy der Erweiterung)
-1. BUG-5 (URI/Katalog) fixen — Abfrage kunden-scoped umdrehen.
-2. Erweiterung erneut lokal + live (eingeloggt, echter Kunde mit mehreren
-   Artikelgruppen) verifizieren; die 5 offenen Akzeptanzkriterien abhaken.
-3. Erst dann Merge nach `main` + Deploy. BUG-4-Fix und Lint-Migration aus dem
-   Branch dabei mitnehmen.
+### Auflösung / Deploy erfolgreich (2026-07-18, später am Tag)
+Alle Blocker behoben und live verifiziert:
+- **BUG-6 vollständig gelöst** — reale DB-Spalten via PostgREST-OpenAPI ermittelt:
+  `invoice_number` (statt `document_number`), `single_price_net` /
+  `total_price_net` / `cost_price_net` / `discount` (statt der nicht existierenden
+  `*_net`/`discount_percent`-Namen). Toter Filter `revenue_category='trade_goods'`
+  entfernt (Spalte ist 100% NULL) → „Handelsware" kommt jetzt aus dem
+  `products.type='PRODUCT'`-Join (Spec 2.4.1). Preise sind Cent → `centsToEuro()`.
+- **BUG-7 (Donut-Query):** gemeinsame Fetch-Funktion sortierte per
+  `invoices(document_date)`, das im Stats-Embed fehlte → Donut-Query brach ab.
+  Behoben.
+- **BUG-8 (instabile Pagination):** Sortierung nach nicht-eindeutigem
+  `document_date` verschluckte/duplizierte Zeilen an der 1000er-Seitengrenze
+  (Tabelle 129 vs Donut 133). Jetzt Pagination stabil nach eindeutigem `id`,
+  Anzeige-Sortierung nach Datum im Speicher → Tabelle und Donut stimmen überein.
+- **Live-Verifikation (Playwright, eingeloggt gegen Production, Kunde Bod'or KTM
+  GmbH):** Tabelle = 129 Positionen, Donut = 129 (MATCH), 10 Artikelgruppen,
+  korrekte Euro-Preise/Rechnungsnummern/Rabatte, Segment-Klick filtert +
+  Dropdown-Sync + Toggle funktionieren, keine Server-5xx. Alle Akzeptanzkriterien
+  Abschnitt 4 „Bestellhistorie" erfüllt.
+
+### Weiterhin offen (SEPARATE Tickets, nicht Teil von PROJ-11)
+- Umsatz-Tab: fehlende Materialized View `mv_partner_monthly_revenue`.
+- `invoice_items.revenue_category` komplett NULL — falls fachlich eine echte
+  Umsatzkategorisierung gebraucht wird, eigene Pipeline nötig.
+- Kein echtes Staging (docker-compose deployt immer nach Production).
 
 ---
 

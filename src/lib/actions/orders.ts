@@ -103,6 +103,14 @@ async function fetchCustomerTradeRows(
   // PostgREST liefert pro Anfrage maximal ~1000 Zeilen (Server-Default). Damit
   // die „gesamte Historie" (Donut-Chart) und die Pagination bei Kunden mit vielen
   // Positionen vollständig bleiben, wird seitenweise via `.range()` durchgeblättert.
+  //
+  // Sortiert wird bewusst nach dem eindeutigen `id` (Primärschlüssel), NICHT nach
+  // `invoices.document_date`: Ein nicht-eindeutiger Sortierschlüssel würde beim
+  // Seitenwechsel (1000er-Grenze) Zeilen doppeln oder verschlucken (Gleichstände
+  // sind nicht deterministisch geordnet) — genau das ließ die Tabelle bei großen
+  // Kunden ~4 Positionen verlieren. Die Anzeige-Sortierung nach Datum passiert
+  // anschließend im Speicher (siehe getPartnerTradeOrders). `id` liegt zudem auf
+  // der Basistabelle, wodurch das fragile Embed-Ordering ganz entfällt.
   const PAGE = 1000;
   const all: any[] = [];
   for (let from = 0; ; from += PAGE) {
@@ -111,7 +119,7 @@ async function fetchCustomerTradeRows(
       .select(select)
       .eq("invoices.partner_id", partnerId)
       .not("description", "is", null)
-      .order("invoices(document_date)", { ascending: false })
+      .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
 
     if (search) {
@@ -164,6 +172,12 @@ export async function getPartnerTradeOrders(
     // Nur echte Produkte (type=PRODUCT) und — falls gesetzt — die gewählte Gruppe.
     // Filterung + Pagination in der App, damit totalCount nach dem Typ-Filter stimmt.
     const filtered = rows.filter((r) => rowQualifies(r.article_number, numberToGroup, groupId));
+    // Anzeige-Sortierung nach Rechnungsdatum absteigend (im Speicher, da die
+    // DB-Abfrage aus Pagination-Stabilität nach `id` sortiert — siehe
+    // fetchCustomerTradeRows). Neueste zuerst.
+    filtered.sort((a, b) =>
+      String(b.invoices?.document_date || "").localeCompare(String(a.invoices?.document_date || ""))
+    );
     const totalCount = filtered.length;
 
     const start = (page - 1) * pageSize;
