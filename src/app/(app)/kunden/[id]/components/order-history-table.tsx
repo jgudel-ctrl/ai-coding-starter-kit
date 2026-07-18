@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/table";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { getPartnerTradeOrders, getPartnerOrderGroupStats } from "@/lib/actions/orders";
-import type { TradeOrderItem, OrderGroupStat } from "@/lib/actions/orders";
+import type { TradeOrderItem } from "@/lib/actions/orders";
+import type { OrderGroupStat } from "@/lib/actions/orders-helpers";
 import { OrderDetailModal } from "./order-detail-modal";
 import { OrderGroupChart } from "./order-group-chart";
 

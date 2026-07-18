@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -193,11 +193,13 @@ export function ManufacturerModal({
 }: ManufacturerModalProps) {
   const [name, setName] = useState(manufacturer?.name || "");
   const [notes, setNotes] = useState(manufacturer?.notes || "");
+  const [syncedId, setSyncedId] = useState(manufacturer?.id);
 
-  useEffect(() => {
+  if (syncedId !== manufacturer?.id) {
+    setSyncedId(manufacturer?.id);
     setName(manufacturer?.name || "");
     setNotes(manufacturer?.notes || "");
-  }, [manufacturer?.id]);
+  }
 
   const isEditing = !!manufacturer;
 
@@ -339,7 +341,7 @@ export function ImportModal({
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Der Import liest das Feld "Note" aus den Easybill-Daten und ordnet
+                Der Import liest das Feld &quot;Note&quot; aus den Easybill-Daten und ordnet
                 jedem Artikel den passenden Hersteller zu. Bereits existierende
                 Hersteller werden nicht doppelt angelegt.
               </AlertDescription>

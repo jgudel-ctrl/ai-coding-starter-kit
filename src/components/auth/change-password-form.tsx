@@ -41,6 +41,8 @@ export function ChangePasswordForm() {
         return;
       }
       toast.success("Passwort gespeichert.");
+      // Voller Reload (kein router.push), damit Session-Cookies greifen.
+      // eslint-disable-next-line react-hooks/immutability
       window.location.href = "/dashboard";
     } catch {
       toast.error("Konnte das Passwort nicht ändern. Bitte erneut versuchen.");

@@ -49,19 +49,7 @@ export function PartnerDiscountsCard({ partnerId, isAdmin }: PartnerDiscountsPro
   const [editing, setEditing] = useState<EditingState>({ id: null, value: "", isSaving: false });
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    loadDiscounts();
-  }, [partnerId]);
-
-  // Fokus auf Input wenn Edit-Modus startet
-  useEffect(() => {
-    if (editing.id && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [editing.id]);
-
-  async function loadDiscounts() {
+  const loadDiscounts = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -75,7 +63,22 @@ export function PartnerDiscountsCard({ partnerId, isAdmin }: PartnerDiscountsPro
     }
 
     setLoading(false);
-  }
+  }, [partnerId]);
+
+  useEffect(() => {
+    // Standard fetch-on-mount: loadDiscounts sets state async after the
+    // effect body returns, not synchronously within it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadDiscounts();
+  }, [loadDiscounts]);
+
+  // Fokus auf Input wenn Edit-Modus startet
+  useEffect(() => {
+    if (editing.id && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing.id]);
 
   // Map für Gruppenauflösung (Fallback wenn DB-Feld leer)
   const groupsMap = new Map(positionGroups.map((pg) => [pg.id, pg]));

@@ -1,6 +1,6 @@
 # PROJ-11: Kundendetailseite (erweitert)
 
-**Status:** Deployed — Erweiterung (Bestellhistorie Produkttyp/Gruppierung/Donut-Chart) in Review, wartet auf Approval  
+**Status:** Basis Deployed (main) — Erweiterung (Bestellhistorie Produkttyp/Gruppierung/Donut-Chart) NICHT deployed, in Review; Production am 2026-07-18 auf sauberes main zurückgerollt (siehe Abschnitt „Deploy-Verlauf 2026-07-18")  
 **Projekt:** TMS 2.0  
 **Priorität:** Hoch  
 **Autor:** Klausi (KI-Entwickler)  
@@ -649,6 +649,88 @@ nach Deploy beobachten.
   verifiziert werden konnte. Empfehlung: einmaligen Live-Test mit einem
   echten Kunden (mehrere Artikelgruppen) vor `/deploy` durchführen, dann
   BUG-1 (einzeilig) beheben, BUG-2 optional vorab oder danach.
+
+---
+
+## Deploy-Verlauf 2026-07-18 (Live-Verifikation + Rollback)
+
+Beim Ausführen des Deploys (`./scripts/deploy.sh PROJ-11`) wurde die von QA
+geforderte Live-Verifikation gegen echte Produktionsdaten nachgeholt. Ergebnis:
+**die Erweiterung ist in dieser Form nicht produktionsreif** und wurde nach
+Rücksprache wieder von Production entfernt.
+
+### Vorgefundener Zustand / Infrastruktur-Erkenntnisse
+- **Kein echtes Staging:** `docker-compose.yml` definiert nur einen Service
+  `tms` mit Traefik-Router fest auf `tms.gudel-werkzeuge.de` (Production).
+  `DEPLOY_TARGET=staging` ändert nur die Verifikations-URL, nicht das Deploy-Ziel
+  — ein Deploy landet immer auf Production. **Offener Punkt:** echten
+  Staging-Service + Route einführen, bevor „staging" sinnvoll nutzbar ist.
+- **Lint-Tooling war projektweit kaputt:** `next lint` existiert in Next 16 nicht
+  mehr; ESLint 9 kann die alte `.eslintrc.json` nicht lesen. Migriert auf Flat
+  Config (`eslint.config.js`, `eslint-config-next/core-web-vitals`),
+  `package.json`-Script auf `eslint .` umgestellt, 8 vorbestehende Lint-Fehler in
+  fremden Dateien behoben (Auth-Formulare, Sidebar, Manufacturer-Table,
+  discounts-card, page.tsx). *(Diese Änderungen liegen im Feature-Branch,
+  wurden NICHT nach Production deployed.)*
+
+### Gefundene Bugs (live, echte Daten)
+- **BUG-4 (Critical, Crash):** `orders.ts` (`"use server"`) re-exportierte einen
+  Typ via `export type { OrderGroupStat }` aus `orders-helpers.ts`. Turbopack in
+  Next 16 leakt das als Laufzeit-Referenz in die Server-Action-Manifest-Datei →
+  `ReferenceError: OrderGroupStat is not defined` bei **jedem** Aufruf des
+  Bestellhistorie-Tabs (HTTP 500, Tab hängt ewig im Ladezustand). `tsc --noEmit`
+  fängt das nicht ab (Bundler-Ebene, kein Typfehler) — deshalb in QA unentdeckt.
+  **Fix:** Re-Export entfernt, Typ direkt aus `orders-helpers.ts` importiert
+  (Muster wie überall sonst im Code, z.B. `manufacturers.ts`). Lokal verifiziert
+  (Lint/tsc/Build/23 Unit-Tests grün). **Liegt im Branch, noch nicht deployed.**
+- **BUG-5 (Critical, Design) — ✅ Behoben (2026-07-18, im Branch):**
+  `getPartnerTradeOrders` UND `getPartnerOrderGroupStats` luden erst den
+  **gesamten** Artikelkatalog (`type='PRODUCT'`) und stopften alle Nummern in
+  `.in("article_number", …)`. PostgREST hängt die Liste an die Query-URL → bei
+  großem Katalog `URI too long`, beide Abfragen scheiterten. **Fix umgesetzt:**
+  Abfrage umgedreht — zuerst die (kunden-begrenzte) Bestellliste holen
+  (`fetchCustomerTradeRows`), dann nur deren Artikelnummern gegen den
+  Produktstamm mappen (`buildNumberToGroupMap`), Lookups in Blöcken à 150
+  (`chunk()`), damit keine `.in()`-URL zu lang wird. Typ-Filter + Pagination
+  laufen jetzt in der App-Schicht (korrekter `totalCount` nach Typ-Filter). Neue
+  reine Helfer `chunk` + `rowQualifies` in `orders-helpers.ts`, unit-getestet
+  (32/32 Tests grün, +9). Behebt zugleich die von QA notierte Speicher-Last
+  (kein Voll-Katalog mehr im Speicher). Lint/tsc/Build grün.
+  **Noch nicht deployed** — Grund siehe BUG-6.
+- **BUG-6 (Blocker für Live-Rendering, VORBESTEHEND — nicht durch die Erweiterung
+  verursacht):** Die Bestellhistorie-Query selektiert `invoices.document_number`,
+  aber diese Spalte existiert in der Produktions-DB nicht
+  (`column invoices_1.document_number does not exist`, 42703) — gilt für die
+  Basis auf `main` **und** für den Branch. Solange das nicht geklärt ist, zeigt
+  der Tab auch mit BUG-4+BUG-5-Fix keine Daten. DB-Schema-Introspektion war in
+  dieser Umgebung gesperrt → **richtiger Spaltenname / fehlende Migration muss
+  vom Team bestätigt werden**, bevor die Erweiterung live verifiziert werden kann.
+
+### Rollback (durchgeführt)
+- Production am 2026-07-18 auf **`main`** (Commit `37d2640`) zurückgebaut und neu
+  deployed. `main` enthält die Erweiterung nicht, dafür alle regulär deployten
+  Features (PROJ-20/21/22/28/26).
+- **Wichtig:** Das naheliegende „vorherige" Docker-Image (`522bcdfa0a11`,
+  2026-07-17 19:23) enthielt die kaputte Erweiterung bereits — ein Rollback
+  dorthin hätte nichts gebracht. Production lief also schon **vor** dem heutigen
+  Deploy mit dem BUG-4-Crash. Deshalb sauber aus `main` neu gebaut statt Image
+  wiederverwendet.
+- Verifiziert: `/login` 200, Bestellhistorie-Tab rendert ohne 500 (sauberer
+  Leerzustand statt Crash), keine `OrderGroupStat`-/`URI too long`-Fehler mehr.
+
+### Nebenbefunde auf `main` (vorbestehend, NICHT Teil dieser Erweiterung)
+- Basis-`getPartnerTradeOrders` wirft `column invoices_1.document_number does not
+  exist` (42703) → Bestellhistorie-Basis zeigt Leerzustand statt Daten. Eigenes
+  Ticket wert.
+- Umsatz-Tab: `Could not find the table 'tms.mv_partner_monthly_revenue' in the
+  schema cache` → fehlende Materialized View. Eigenes Ticket wert.
+
+### Nächste Schritte (vor erneutem Deploy der Erweiterung)
+1. BUG-5 (URI/Katalog) fixen — Abfrage kunden-scoped umdrehen.
+2. Erweiterung erneut lokal + live (eingeloggt, echter Kunde mit mehreren
+   Artikelgruppen) verifizieren; die 5 offenen Akzeptanzkriterien abhaken.
+3. Erst dann Merge nach `main` + Deploy. BUG-4-Fix und Lint-Migration aus dem
+   Branch dabei mitnehmen.
 
 ---
 

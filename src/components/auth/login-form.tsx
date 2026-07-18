@@ -37,6 +37,7 @@ export function LoginForm() {
       }
       // Voller Reload, damit die Session-Cookies greifen; Middleware leitet
       // bei offenem Passwortwechsel automatisch nach /passwort-aendern um.
+      // eslint-disable-next-line react-hooks/immutability
       window.location.href = "/dashboard";
     } catch {
       toast.error("Anmeldung fehlgeschlagen. Bitte erneut versuchen.");

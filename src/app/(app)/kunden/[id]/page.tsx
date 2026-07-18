@@ -92,8 +92,8 @@ export default async function KundeDetailPage({
       </div>
 
       {/* Tabs */}
-      <TabContainer
-        children={{
+      <TabContainer>
+        {{
           overview: (
             <OverviewTab
               partner={partner}
@@ -120,7 +120,7 @@ export default async function KundeDetailPage({
           ),
           discounts: <DiscountsTab partnerId={id} isAdmin={isAdmin} />,
         }}
-      />
+      </TabContainer>
     </div>
   );
 }

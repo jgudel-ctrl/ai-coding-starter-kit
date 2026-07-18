@@ -3,7 +3,7 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart as PieChartIcon } from "lucide-react";
-import type { OrderGroupStat } from "@/lib/actions/orders";
+import type { OrderGroupStat } from "@/lib/actions/orders-helpers";
 
 /* ═══════════════════════════════════════════
    Donut-Chart: Bestellpositionen je Artikelgruppe
