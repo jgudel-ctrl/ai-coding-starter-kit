@@ -31,7 +31,7 @@
 | PROJ-30 | Themenvorschläge (wöchentlich, KI) | 🔵 Planned — Spec geschrieben; 1×/Woche ca. 5 Vorschläge (Titel+Aufhänger+Quell-Bezug) aus der Wissensbasis, Dedup gegen behandelte Themen; Zustände Freigeben/Ablehnen/Parken; nur Freigegebenes fließt in PROJ-31 | 2026-07-20 |
 | PROJ-31 | Content-Studio (Generierung + Redaktion + Lern-Loop) | 🔵 Planned — Spec geschrieben; Tonalität im Prototyp validiert. Regler=Stil, Freitext=nur fachliche Korrektur, jede Iteration gespeichert + Lern-Speicher; Sie-Form + neutral (keine Marke); nur für freigegebene Themen (PROJ-30), speist PROJ-32 | 2026-07-20 |
 | PROJ-32 | Multi-Channel-Content-Studio | 🔵 Planned — Spec geschrieben; Ein-Klick aus freigegebenem Artikel → alle Kanal-Pieces (Blog, Newsletter, LinkedIn, Instagram Post+Reel, Facebook Post+Reel), best-practice-angepasst; kanalgetreue Vorschau + Iterationsschleife je Piece (wie PROJ-31); Reels = Skript+Caption+Bildvorschläge | 2026-07-20 |
-| PROJ-33 | Redaktionskalender & Ausspielung | 🔵 Roadmap — Content-Epic: freigegebene Content-Pieces terminieren; Kalender mit automatischen Belegungs-Vorschlägen nach Kanal-Best-Practice (z.B. Newsletter 1×/Woche, Insta-Reel 3–4×/Woche) + tatsächliches Ausspielen (Kanal-Integrationen) | 2026-07-20 |
+| PROJ-33 | Redaktionskalender & Ausspielung | 🔵 Planned — Spec geschrieben; Kalender mit Auto-Wochen-Vorschlag nach Kanal-Best-Practice + Drag&Drop; Ausspielung über angebundenen Publishing-Dienst (Buffer/Metricool); Status geplant/ausgespielt/fehlgeschlagen; nur freigegebene Pieces (PROJ-32) | 2026-07-20 |
 
 ## Architektur-Dokumente
 
