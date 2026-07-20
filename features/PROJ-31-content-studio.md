@@ -5,8 +5,9 @@
 **Last Updated:** 2026-07-20
 
 > Dritter Baustein des **Content-Epics** (PROJ-29 → PROJ-30 → **PROJ-31** → PROJ-32) und dessen
-> Herzstück. Hier wird zu einem **freigegebenen Thema** (aus PROJ-30) mit KI ein Artikel (Text +
-> Bilder) erzeugt und im **Human-in-the-Loop** so lange verfeinert, bis er passt. Aus den
+> Herzstück. Hier wird zu einem **freigegebenen Thema** (aus PROJ-30) mit KI ein Artikel-**Text**
+> erzeugt (Bilder werden hochgeladen) und im **Human-in-the-Loop** so lange verfeinert, bis er
+> passt. Aus den
 > Korrekturen **lernt** das System, damit Texte mit der Zeit „auf Anhieb" sitzen.
 >
 > **Prototyp-Validierung (2026-07-20):** Tonalität anhand eines echten Beispieltextes des Users
@@ -21,7 +22,8 @@
 - **PROJ-30 (Themenvorschläge)** — liefert die **freigegebenen Themen**; Content wird **nur** für
   freigegebene Themen erstellt.
 - **Speist PROJ-32 (Publishing)** — freigegebene Artikel gehen dorthin zur Ausspielung.
-- **Extern:** KI-Text- und Bildgenerierung (konkrete Modelle/Anbieter → `/architecture`).
+- **Extern:** KI-Textgenerierung (konkrete Modelle/Anbieter → `/architecture`). **Keine
+  KI-Bildgenerierung** — Bilder werden hochgeladen (siehe Kern-Mechanik).
 
 ## User Stories
 - Als **Redakteur** möchte ich zu einem freigegebenen Thema per Klick einen ersten Artikel-Entwurf
@@ -32,8 +34,9 @@
   Text technisch korrekt neu erzeugt wird.
 - Als **Redakteur** möchte ich, dass **jede Iteration gespeichert** wird und das System aus meinen
   **fachlichen Korrekturen lernt**, damit künftige Texte denselben Fehler nicht wiederholen.
-- Als **Redakteur** möchte ich **Bilder generieren lassen oder eigene hochladen**, damit der Artikel
-  bebildert ist.
+- Als **Redakteur** möchte ich **Bilder hochladen** (Häkchen „selbst gemacht" **oder** mit
+  **Quellenangabe** aus dem Internet) und dazu einen **KI-überarbeiteten Bildtext** bekommen, damit
+  der Artikel korrekt bebildert und beschriftet ist.
 - Als **Redakteur** möchte ich einen Artikel **final freigeben**, damit er zur Veröffentlichung
   (PROJ-32) bereitsteht.
 - Als **Admin** möchte ich einen **Beispiel-Text als Tonalitäts-Anker** hinterlegen, damit alle
@@ -60,7 +63,8 @@
 - **Pflege der Wissensbasis** (PDF-Upload, Extraktion, Prüfung) → PROJ-29.
 - **Kanalspezifische Format-Varianten** (kurzer Social-Post vs. langer Blog-Artikel) → primär
   PROJ-32; hier entsteht zunächst der **Kern-Artikel** (siehe Open Questions).
-- **Externe Bildbeschaffung/Stockfotos** — nur KI-Generierung oder eigener Upload.
+- **KI-Bildgenerierung** und automatische Stockfoto-Beschaffung — Bilder werden ausschließlich
+  hochgeladen (selbst gemacht oder mit Quellenangabe); die KI überarbeitet nur den Bildtext.
 
 ## Acceptance Criteria
 
@@ -102,8 +106,11 @@
   gespeichert werden, dann landen sie im **Lern-Speicher** und verbessern künftige Generierungen.
 
 ### Bilder
-- [ ] Angenommen ein Artikel wird bearbeitet, wenn der Redakteur ein Bild generieren lässt oder ein
-  eigenes hochlädt, dann wird es dem Artikel zugeordnet.
+- [ ] Angenommen ein Artikel wird bearbeitet, wenn der Redakteur ein Bild hochlädt, dann muss er
+  entweder **„selbst gemacht"** markieren **oder** eine **Quellenangabe** eintragen — sonst
+  erscheint eine Validierungsmeldung (Quelle ist Pflicht).
+- [ ] Angenommen ein Bild wurde hochgeladen, wenn es zugeordnet ist, dann erstellt/überarbeitet die
+  KI den **Bildtext** (Bildunterschrift/Alt-Text); das **Bild selbst wird nicht** von der KI erzeugt.
 
 ### Freigabe
 - [ ] Angenommen ein Artikel passt, wenn der Redakteur ihn freigibt, dann erhält er den Status
@@ -130,7 +137,8 @@
 
 ## Technical Requirements (optional)
 - **Security:** nur Rollen Redaktion + Admin (RLS). Internes Tool.
-- **KI-Text- & Bildgenerierung:** Modelle/Anbieter, Kosten, Datenschutz → `/architecture`.
+- **KI-Textgenerierung** (+ KI-Überarbeitung der Bildtexte): Modelle/Anbieter, Kosten, Datenschutz →
+  `/architecture`. **Keine** Bildgenerierung.
 - **Speicherung:** Artikel, alle Iterationen, Bilder (Supabase Storage) und Lern-Speicher persistent.
 - **Nachvollziehbarkeit:** wer hat wann welche Version erzeugt/korrigiert/freigegeben.
 
@@ -146,7 +154,9 @@
   automatische Nachkontrolle)?
 - [ ] **Kanal-Varianten:** entsteht hier nur der Kern-Artikel, und kanalspezifische Kurz-/
   Langfassungen kommen in PROJ-32 — oder generiert das Studio direkt Varianten?
-- [ ] **Bildgenerierung:** Modell, Stilvorgaben, Bildrechte.
+- [x] **Bildgenerierung:** geklärt (2026-07-20) — **keine** KI-Bildgenerierung; Bilder werden
+  hochgeladen (Häkchen „selbst gemacht" ✓ oder mit Quellenangabe), die KI überarbeitet nur den
+  Bildtext.
 
 ## Decision Log
 
@@ -158,7 +168,7 @@
 | **Tonalitäts-Anker** = hinterlegter Beispiel-Text des Teams | Im Prototyp validiert — traf den Zielstil auf Anhieb sehr gut | 2026-07-20 |
 | **Jede Iteration wird gespeichert**; fachliche Korrekturen fließen in einen **Lern-Speicher** | Kern des „Mitlernens": Fehler werden nicht wiederholt, Texte passen mit der Zeit sofort | 2026-07-20 |
 | **Sie-Form** als Standard, **keine Hersteller-/Markennennung** (immer neutral) | Ausdrückliche Vorgabe des Users | 2026-07-20 |
-| **Bilder**: KI-generiert ODER selbst hochgeladen | Flexibilität; eigene Fotos oft besser/authentischer | 2026-07-20 |
+| **Bilder werden hochgeladen** (Häkchen „selbst gemacht" oder mit Quellenangabe); **keine KI-Bildgenerierung**; KI überarbeitet nur den Bildtext | Urheberrecht sauber (Quelle Pflicht), authentische eigene Fotos; KI-Bildgenerierung teuer/unnötig | 2026-07-20 (refine) |
 | Umbenannt von „Artikel-Werkstatt" → **„Content-Studio"** | Klarerer, passenderer Name | 2026-07-20 |
 
 ### Technical Decisions

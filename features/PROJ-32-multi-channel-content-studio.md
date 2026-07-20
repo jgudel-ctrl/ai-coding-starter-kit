@@ -19,7 +19,8 @@
 - **PROJ-29 (Wissensbasis)** — Faktengrundlage (über den Artikel).
 - **Speist PROJ-33 (Redaktionskalender & Ausspielung)** — freigegebene Pieces werden dort
   terminiert und veröffentlicht.
-- **Extern:** KI-Textgenerierung + Bildvorschläge (→ `/architecture`).
+- **Extern:** KI-Textgenerierung + Bild-/Szenen-**Vorschläge** (Text) + KI-Überarbeitung der
+  Bildtexte (→ `/architecture`). **Keine KI-Bildgenerierung** — Bilder werden hochgeladen.
 
 ## User Stories
 - Als **Redakteur** möchte ich aus einem freigegebenen Artikel **mit einem Klick alle
@@ -45,7 +46,10 @@
 5. **Freigabe + Speicherung je Piece** → bereit für PROJ-33.
 6. **Reels/Video:** ein Piece = **Skript/Storyboard + Caption + Bild-/Szenen-Vorschläge** — **kein**
    fertiges Video (das produziert das Team selbst).
-7. **Harte Regeln bleiben:** **keine Marke** genannt (neutral); Sie-Form als Standard (kanalweise
+7. **Bilder** für die Pieces werden **hochgeladen** (Häkchen „selbst gemacht" **oder** mit
+   **Quellenangabe**) — **keine KI-Bildgenerierung**; die KI liefert nur **Vorschläge** (welche
+   Motive/Szenen passen) und überarbeitet die **Bildtexte** (Caption/Alt-Text).
+8. **Harte Regeln bleiben:** **keine Marke** genannt (neutral); Sie-Form als Standard (kanalweise
    Best-Practice-Anpassung von Länge/Format, siehe Open Questions).
 
 ### MVP-Kanäle
@@ -118,7 +122,9 @@
 - [ ] **Tonalität je Kanal:** überall Sie-Form, oder auf Social lockerer/„Du"? (Standard bis auf
   Weiteres: Sie + neutral; Best-Practice-Anpassung betrifft v.a. Länge/Format.)
 - [ ] **Maximale Anzahl Pieces pro Kanal** (z.B. wie viele Reels pro Thema)?
-- [ ] **Bildvorschläge:** KI-generiert, aus einer Bibliothek, oder beides?
+- [x] **Bilder/Bildvorschläge:** geklärt (2026-07-20) — **keine KI-Bildgenerierung**. Tatsächliche
+  Bilder werden hochgeladen (Häkchen „selbst gemacht" ✓ oder mit Quellenangabe); die KI liefert nur
+  **Vorschläge** (welche Motive/Szenen) und überarbeitet die Bildtexte.
 - [ ] **Kanalgetreue Vorschau:** wie originalgetreu wird die Plattform-Optik nachgebaut?
 - [ ] **Best-Practice-Regeln je Kanal:** fest hinterlegt oder von Admins pflegbar?
 - [ ] **Weitere Kanäle** (X/Twitter, TikTok, YouTube Shorts …) — Reihenfolge/Zeitpunkt.
@@ -132,6 +138,7 @@
 | **Iterationsschleife je Piece = identisch zu PROJ-31** (Regler + fachlicher Freitext, Lern-Speicher) | Konsistente Redaktions-Erfahrung, Engine-Wiederverwendung | 2026-07-20 |
 | **Kanalgetreue Vorschau** je Piece | Redakteur soll sehen, wie es später wirklich aussieht | 2026-07-20 |
 | **Reels = Skript + Caption + Bildvorschläge, kein fertiges Video** | KI-Video ist teuer/unausgereift; Team produziert Video selbst | 2026-07-20 |
+| **Bilder werden hochgeladen** (selbst gemacht ✓ oder mit Quellenangabe); KI liefert nur Bild-/Szenen-Vorschläge (Text) + Bildtexte, generiert **keine** Bilder | Konsistent mit PROJ-31; Urheberrecht sauber, authentische Fotos | 2026-07-20 (refine) |
 | **MVP-Kanäle:** Blog, Newsletter, LinkedIn, Instagram (Post+Reel), Facebook (Post+Reel) | Wichtigste Kanäle breit; X & weitere später | 2026-07-20 |
 | **Freigabe + Speicherung je Piece**; Terminierung/Ausspielung = PROJ-33 | Klare Trennung Content-Erzeugung ↔ Kalender/Publishing | 2026-07-20 |
 | PROJ-32 (Publishing) in **PROJ-32 (Content-Pieces)** + **PROJ-33 (Kalender & Ausspielung)** gesplittet | Ursprüngliche Idee zu groß für eine testbare Einheit | 2026-07-20 |
