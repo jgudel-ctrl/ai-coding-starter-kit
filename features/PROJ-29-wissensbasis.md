@@ -126,6 +126,13 @@
 - [ ] **Welche KI/Extraktions-Pipeline** (Modell, Kosten, on-prem vs. API) — Architektur.
 - [ ] Taxonomie fix oder admin-erweiterbar — im Interview „admin-erweiterbar"
   empfohlen; final in Architektur/Umsetzung bestätigen.
+- [ ] **KI-Extraktions-Kosten/-Volumen:** wie viele und wie große PDFs pro Monat? (Beeinflusst
+  Kosten der externen KI-API — geklärt: Claude.)
+- [x] **Asynchrone Verarbeitung:** geklärt (2026-07-20) — Upload ist **selten (~5 PDFs/Jahr)**,
+  daher reicht eine **einfache Verarbeitung mit Fortschrittsanzeige**; keine Warteschlange/
+  Hintergrund-Job nötig.
+- [x] **Bilder:** geklärt (2026-07-20) — Bilder gehören **nicht** in die Wissensbasis, sondern zu den
+  Content-Pieces (PROJ-31/32). Die Wissensbasis bleibt eine reine Fakten-/Text-Sammlung.
 
 ## Decision Log
 
@@ -146,13 +153,78 @@
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _wird in /architecture ergänzt_ | | |
+| Neue Rolle „Redaktion" ins bestehende Rollen-System (erweitert PROJ-1) | Dediziertes Content-Team, saubere RLS; vom ganzen Content-Epic genutzt | 2026-07-20 |
+| Ablage in Supabase: Einträge/Kategorien in DB (Schema `tms`), PDFs in Supabase Storage | Konsistent mit der App, RLS, keine neue Infrastruktur | 2026-07-20 |
+| KI-Extraktion über externe KI-API (Claude), serverseitig + gekapselt/austauschbar | Beste PDF-Verarbeitung, geringe Betriebskosten; KI-Schlüssel bleibt serverseitig | 2026-07-20 |
+| UI nach bestehendem Verwaltungs-Muster (shadcn-Tabelle/Dialoge/Badges, wie Hersteller-/Nutzer-Verwaltung) | Wiederverwendung bewährter Bausteine, kein Neubau | 2026-07-20 |
+| Extraktion mit Fortschrittsanzeige, aber **ohne Warteschlange** | Upload ist selten (~5 PDFs/Jahr) — einfache Verarbeitung genügt | 2026-07-20 |
+| **Keine Bilder** in der Wissensbasis (bleiben bei den Content-Pieces, PROJ-31/32) | Wissensbasis = reine Fakten-/Text-Sammlung, schlank und wiederverwertbar | 2026-07-20 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+**Werkstatt-Vergleich:** Die Wissensbasis ist wie ein gut sortierter Karteikasten in der
+Werkstatt. Ihr werft ein Hersteller-Handbuch in einen „Lese-Automaten" (die KI), der die
+wichtigen technischen Angaben auf einzelne Karteikarten überträgt. Jede Karte landet erst im
+Fach „Entwurf". Ein Redakteur prüft sie und schiebt sie ins Fach „Geprüft" — nur diese Karten
+gelten dann als verlässlich.
+
+### A) Komponenten-Struktur (was auf dem Bildschirm entsteht)
+```
+Wissensbasis-Seite  (nur Rolle Redaktion/Admin)
+├── Kopfzeile
+│   ├── Button „Dokument hochladen"
+│   └── Filter & Suche (Werkzeugart · Material · Status · Volltext)
+├── Upload-Dialog
+│   ├── PDF/Dokument auswählen
+│   ├── Fortschritt „KI liest das Dokument …"
+│   └── Ergebnis: „X Einträge als Entwurf erstellt"
+├── Einträge-Tabelle
+│   ├── Spalten: Titel · Werkzeugart · Material · Quelle · Status (Entwurf/Geprüft)
+│   └── Zeile anklicken → Detail/Bearbeiten
+├── Eintrag Detail/Bearbeiten
+│   ├── Felder: Titel · Werkzeugart · Material · technische Kennwerte ·
+│   │           Beschreibung (eigene Worte) · Originaltext-Auszug · Quelle (Hersteller+Seite)
+│   ├── „Auf Geprüft setzen" (prüft Pflichtfelder)
+│   └── Verwerfen/Löschen
+├── Kategorien-Verwaltung (Admin): Werkzeugart- & Material-Listen pflegen
+└── Leerzustand: „Erstes Dokument hochladen"
+```
+Die Oberfläche folgt dem **bewährten Verwaltungs-Muster** der App (wie Hersteller- und
+Nutzer-Verwaltung) — dieselben Bausteine (Tabelle, Dialoge, Status-Badges), nichts wird neu erfunden.
+
+### B) Datenmodell (in Alltagssprache)
+- **Wissens-Eintrag:** Titel/Begriff · Werkzeugart · Material · mehrere technische Kennwerte
+  (Name→Wert) · Beschreibungstext (destilliert) · Originaltext-Auszug · Quelle (Hersteller +
+  Dokument + Seite) · Status (Entwurf/Geprüft) · wer/wann erstellt & geändert · Verweis auf das
+  Quell-PDF.
+- **Quell-Dokument:** die hochgeladene PDF-Datei selbst (Dateiname, wann, von wem).
+- **Kategorien:** zwei pflegbare Listen — Werkzeugart (Säge/Fräser/Bohrer …) und Material
+  (Holz/Kunststoff/Aluminium …).
+- **Ablage:** Einträge & Kategorien in der bestehenden Datenbank (Supabase, Schema `tms`), die
+  PDF-Dateien im Datei-Speicher (Supabase Storage). Zugriff nur für Redaktion/Admin.
+
+### C) Tech-Entscheidungen (warum so)
+- **Neue Rolle „Redaktion"** ins bestehende Rollen-System (erweitert PROJ-1) — ein dediziertes
+  Content-Team, sauber von den Werkstatt-Rollen getrennt. Einmal jetzt richtig gemacht, nutzt das
+  ganze Content-Epic sie.
+- **Alles in Supabase** (wie der Rest der App): Datenbank für die Karteikarten, Datei-Speicher für
+  die PDFs. Konsistent, abgesichert (RLS), keine neue Infrastruktur.
+- **KI-Extraktion über eine externe KI-API (Claude)**, **serverseitig** ausgeführt: Der Upload
+  landet zuerst im Datei-Speicher, dann liest die KI das PDF und liefert fertige Entwurfs-Einträge
+  zurück. Der KI-Zugangsschlüssel bleibt dabei **immer auf dem Server** (nie im Browser). Der
+  KI-Dienst wird **gekapselt/austauschbar** angebunden — später leicht wechselbar.
+- **Extraktion läuft asynchron mit Fortschrittsanzeige:** große Handbücher dürfen etwas dauern,
+  ohne die Oberfläche zu blockieren.
+- **Datenschutz/Urheberrecht:** Beim Extrahieren wird das PDF kurz an den KI-Dienst geschickt
+  (interne Nutzung) — bleibt als Klärungspunkt vermerkt (siehe Open Questions).
+
+### D) Abhängigkeiten (neue Bausteine)
+- **KI-Anbindung** (Anthropic-SDK für die Extraktion) — einziges wirklich neues Paket.
+- **Datei-Speicher** (Supabase Storage) — bereits im Projekt, kein neues Paket.
+- **Validierung** (Zod) und alle UI-Bausteine (shadcn/ui) — bereits vorhanden.
 
 ## QA Test Results
 _To be added by /qa_

@@ -27,7 +27,7 @@
 | PROJ-21 | Fahrer-Seite | ✅ Deployed | 2026-07-06 |
 | PROJ-22 | Kalender für blockierte Tage | ✅ Deployed | 2026-07-07 |
 | PROJ-28 | Hersteller-Verwaltung & Artikel-Zuordnung | ✅ Deployed | 2026-07-10 |
-| PROJ-29 | Wissensbasis (KI-Content-Fundament) | 🔵 Planned — Spec geschrieben; Fundament des Content-Epics: technische Quelldaten (Leitz-Lexikon + Hersteller) per PDF→KI-Extraktion→Prüfung, Rolle „Redaktion" | 2026-07-20 |
+| PROJ-29 | Wissensbasis (KI-Content-Fundament) | 🔵 Architected — Spec + Tech Design fertig; PDF→KI-Extraktion (Claude, serverseitig)→Prüfung, Ablage Supabase (DB+Storage), Rolle „Redaktion"; Upload selten (~5/Jahr), keine Bilder (die kommen bei den Content-Pieces) | 2026-07-20 |
 | PROJ-30 | Themenvorschläge (wöchentlich, KI) | 🔵 Planned — Spec geschrieben; 1×/Woche ca. 5 Vorschläge (Titel+Aufhänger+Quell-Bezug) aus der Wissensbasis, Dedup gegen behandelte Themen; Zustände Freigeben/Ablehnen/Parken; nur Freigegebenes fließt in PROJ-31 | 2026-07-20 |
 | PROJ-31 | Content-Studio (Generierung + Redaktion + Lern-Loop) | 🔵 Planned — Spec geschrieben; Tonalität im Prototyp validiert. Regler=Stil, Freitext=nur fachliche Korrektur, jede Iteration gespeichert + Lern-Speicher; Sie-Form + neutral (keine Marke); nur für freigegebene Themen (PROJ-30), speist PROJ-32 | 2026-07-20 |
 | PROJ-32 | Multi-Channel-Content-Studio | 🔵 Planned — Spec geschrieben; Ein-Klick aus freigegebenem Artikel → alle Kanal-Pieces (Blog, Newsletter, LinkedIn, Instagram Post+Reel, Facebook Post+Reel), best-practice-angepasst; kanalgetreue Vorschau + Iterationsschleife je Piece (wie PROJ-31); Reels = Skript+Caption+Bildvorschläge | 2026-07-20 |
@@ -43,6 +43,7 @@
 | PROJ-16 | PROJ-16-architektur.md |
 | PROJ-18 | PROJ-18-architektur.md |
 | PROJ-19 | PROJ-19-architektur.md |
+| PROJ-29 | in PROJ-29-wissensbasis.md (Abschnitt „Tech Design") |
 
 ---
 
