@@ -27,7 +27,7 @@
 | PROJ-21 | Fahrer-Seite | ✅ Deployed | 2026-07-06 |
 | PROJ-22 | Kalender für blockierte Tage | ✅ Deployed | 2026-07-07 |
 | PROJ-28 | Hersteller-Verwaltung & Artikel-Zuordnung | ✅ Deployed | 2026-07-10 |
-| PROJ-29 | Wissensbasis (KI-Content-Fundament) | 🟠 In Review — QA bestanden (38/38 Tests, RLS/DB verifiziert, Security ok, keine Critical/High; 1 Regression behoben). Code-seitig freigabefähig für Deploy; voll „ready" erst nach /deploy + ANTHROPIC_API_KEY + Live-Verifikation | 2026-07-20 |
+| PROJ-29 | Wissensbasis (KI-Content-Fundament) | ✅ Deployed — Seite live & verifiziert (DB/Kategorien/KPIs/Leerzustand), Migration/RLS/Rolle „redaktion" live; Upload-Bug (1MB→25MB) behoben & deployed. Offen: KI-Extraktion braucht Anthropic-Guthaben (kein Code-Fehler); optional Upload-Härtung | 2026-07-20 |
 | PROJ-30 | Themenvorschläge (wöchentlich, KI) | 🔵 Planned — Spec geschrieben; 1×/Woche ca. 5 Vorschläge (Titel+Aufhänger+Quell-Bezug) aus der Wissensbasis, Dedup gegen behandelte Themen; Zustände Freigeben/Ablehnen/Parken; nur Freigegebenes fließt in PROJ-31 | 2026-07-20 |
 | PROJ-31 | Content-Studio (Generierung + Redaktion + Lern-Loop) | 🔵 Planned — Spec geschrieben; Tonalität im Prototyp validiert. Regler=Stil, Freitext=nur fachliche Korrektur, jede Iteration gespeichert + Lern-Speicher; Sie-Form + neutral (keine Marke); nur für freigegebene Themen (PROJ-30), speist PROJ-32 | 2026-07-20 |
 | PROJ-32 | Multi-Channel-Content-Studio | 🔵 Planned — Spec geschrieben; Ein-Klick aus freigegebenem Artikel → alle Kanal-Pieces (Blog, Newsletter, LinkedIn, Instagram Post+Reel, Facebook Post+Reel), best-practice-angepasst; kanalgetreue Vorschau + Iterationsschleife je Piece (wie PROJ-31); Reels = Skript+Caption+Bildvorschläge | 2026-07-20 |

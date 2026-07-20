@@ -242,7 +242,14 @@ export async function uploadKnowledgeDocument(
       }),
     });
     if (!res.ok) {
-      return { ok: false, error: "KI-Dienst-Fehler: " + res.status };
+      const errText = await res.text();
+      let msg = errText;
+      try {
+        msg = JSON.parse(errText)?.error?.message || errText;
+      } catch {
+        /* Rohtext behalten */
+      }
+      return { ok: false, error: "KI-Dienst-Fehler (" + res.status + "): " + msg.slice(0, 220) };
     }
     const json = await res.json();
     const text: string = json?.content?.[0]?.text ?? "";

@@ -333,5 +333,17 @@ Live-Verifikations-Schritt nach `/deploy` vorgesehen. Der KI-Parser ist unit-get
   Runtime, (3) einmaliger Live-Verifikation (Upload + Extraktion + Freigabe im Browser).
 - Empfehlung: **Deploy freigeben**, danach Live-Verifikation + optional die Upload-Härtung.
 
+### Live-Verifikation nach Deploy (2026-07-20)
+- ✅ Seite `/verwaltung/wissensbasis` **live** — lädt Kategorien/KPIs aus der DB, sauberer
+  Leerzustand, keine Server-5xx. Production/Bestellhistorie unverändert (keine Regression).
+- 🐛 **BUG gefunden & behoben:** PDF-Upload > 1 MB scheiterte an Next.js' Server-Action-Limit
+  (Standard 1 MB) — „Body exceeded 1 MB limit". Hersteller-PDFs sind größer. **Fix:**
+  `serverActions.bodySizeLimit: '25mb'` in `next.config.ts`; neu deployed & verifiziert (Upload
+  erreicht jetzt die KI).
+- 🔧 Fehleranzeige verbessert: Meldungen des KI-Dienstes werden durchgereicht (statt nur „400").
+- ⏳ **KI-Extraktion end-to-end noch nicht bestätigt** — Ursache ist **kein Code-Fehler**, sondern
+  **fehlendes Guthaben auf dem Anthropic-Konto** („credit balance too low"). Sobald Credits/Billing
+  hinterlegt sind, läuft die Extraktion sofort. Key ist gültig, Anfrage-Format korrekt.
+
 ## Deployment
 _To be added by /deploy_
