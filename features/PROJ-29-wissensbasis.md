@@ -279,7 +279,59 @@ Nutzer-Verwaltung) — dieselben Bausteine (Tabelle, Dialoge, Status-Badges), ni
 - [ ] **Nav-Sichtbarkeit** des Wissensbasis-Links auch für Rolle „redaktion" (aktuell Admin-Menü).
 
 ## QA Test Results
-_To be added by /qa_
+
+**Getestet:** 2026-07-20 · **Tester:** QA Engineer (KI)
+**Rahmen:** Der neue App-Code ist noch **nicht deployed** und der `ANTHROPIC_API_KEY` noch nicht in
+der Runtime — ein **voller Live-Browser-Test war daher nicht möglich**. Geprüft wurde: Automatik-
+Tests, Datenbank/RLS gegen die (bereits angewandte) Migration, statischer Security-Audit und
+Kriterien-Abgleich am Code. Live-Verifikation erfolgt nach `/deploy`.
+
+### Automatisierte Tests
+- `npx tsc --noEmit`: ✅ · `npm run build`: ✅ · Lint: ✅
+- Unit-Tests: ✅ **38/38** (inkl. 4 neue für den KI-Extraktions-Parser `wissensbasis-helpers`).
+- **Regression gefunden & behoben (während QA):** `roles.test.ts` prüfte „genau 7 Rollen" — durch
+  die gewollte neue Rolle „redaktion" nun 8. Test aktualisiert (8 Rollen + `redaktion`-Check).
+
+### Datenbank / RLS (Migration live verifiziert)
+- RLS auf allen drei Tabellen **aktiv** ✅; Policies vorhanden (categories 2, documents 1, entries 1).
+- Rollen-Check `is_content_manager()` korrekt (Test-Nutzer admin → true) ✅.
+- Kategorien geseedet (6) ✅; Rolle `redaktion` im Enum ✅; Storage-Bucket `wissensbasis` privat ✅.
+- Production nach der Migration gesund (`/login` 200) — keine Regression an bestehenden Features.
+
+### Security-Audit (statisch, Red-Team)
+- [x] **Auth/Autz:** Seite über `canManageContent` gegated; **jede** Server-Action prüft
+  `requireContentManager`; RLS als zweite Verteidigungslinie. Stark.
+- [x] **Injection:** Suche nutzt `escapeOrFilterValue` + gequotetes `ilike` (BUG-2-sicheres Muster);
+  keine roh eingebettete Nutzereingabe.
+- [x] **Secrets:** `ANTHROPIC_API_KEY` + Service-Role-Key nur serverseitig (`"use server"`), nie im
+  Client. Kein Leak.
+- [x] **XSS:** alle Ausgaben über React-Rendering, kein `dangerouslySetInnerHTML`.
+- [ ] **Upload-Härtung (Low/Medium):** serverseitig fehlt eine explizite **Datei-Typ-/Größen-Prüfung**
+  beim PDF-Upload (nur `accept=".pdf"` im Client). Empfehlung: im Backend MIME-Typ + Maximalgröße
+  prüfen, bevor an die KI/Storage gegeben wird.
+- [ ] **Daten nach extern:** das PDF geht zur Extraktion an die Anthropic-API (interne Nutzung) —
+  siehe Urheberrechts-/Datenschutz-Open-Question.
+
+### Akzeptanzkriterien (Abschnitt 4)
+- [x] Zugang/Rollen (RLS + Seiten-Gate) — statisch + DB bestätigt.
+- [x] Leerzustand, Filter/Suche, Eintrag-Felder, Status-Logik (Entwurf→Geprüft, Pflichtfelder) — im
+  Code umgesetzt; **Live-Nachweis nach Deploy**.
+- [ ] **UNGEPRÜFT (Deploy + Key nötig):** Upload → KI-Extraktion → Entwurfs-Einträge; End-to-End im
+  Browser.
+
+### Bugs
+- 1 Regression (Test-Assertion 7→8 Rollen) — **behoben**. Keine Critical/High-Bugs.
+- 1 Härtungs-Hinweis (Upload-Validierung, Low/Medium) — offen, kein Blocker.
+
+### E2E-Tests
+Noch nicht geschrieben/ausgeführt — benötigen eine laufende Instanz (Deploy) und den KI-Key; als
+Live-Verifikations-Schritt nach `/deploy` vorgesehen. Der KI-Parser ist unit-getestet.
+
+### Ergebnis
+- **Keine Critical/High-Bugs.** Code-seitig **freigabefähig für den Deploy.**
+- **Voll „Production-Ready" erst nach:** (1) `/deploy` der App, (2) `ANTHROPIC_API_KEY` in der
+  Runtime, (3) einmaliger Live-Verifikation (Upload + Extraktion + Freigabe im Browser).
+- Empfehlung: **Deploy freigeben**, danach Live-Verifikation + optional die Upload-Härtung.
 
 ## Deployment
 _To be added by /deploy_
