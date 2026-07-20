@@ -226,6 +226,31 @@ Nutzer-Verwaltung) — dieselben Bausteine (Tabelle, Dialoge, Status-Badges), ni
 - **Datei-Speicher** (Supabase Storage) — bereits im Projekt, kein neues Paket.
 - **Validierung** (Zod) und alle UI-Bausteine (shadcn/ui) — bereits vorhanden.
 
+## Implementierungsnotizen — Frontend (2026-07-20)
+
+- **Neue Rolle „redaktion"** in `src/lib/roles.ts` ergänzt (Label „Redaktion" + Helfer
+  `isRedaktion` / `canManageContent`).
+- **Seite** `src/app/(app)/verwaltung/wissensbasis/page.tsx` — Server-Komponente,
+  rollen-geschützt über `canManageContent` (Redaktion/Admin).
+- **Komponenten** unter `src/components/wissensbasis/`:
+  `wissensbasis-admin-page` (Kopf, Filter/Suche, Tabelle, Leerzustand, Dialog-Steuerung),
+  `wissensbasis-table` (Status-Badges Entwurf/Geprüft), `wissensbasis-entry-modal`
+  (Detail/Bearbeiten inkl. „Auf Geprüft setzen" mit Pflichtfeld-Prüfung Werkzeugart+Material),
+  `wissensbasis-upload-dialog` (PDF-Upload mit „KI liest …"-Fortschritt).
+- **Server-Actions-Gerüst** `src/lib/actions/wissensbasis.ts` mit Typen + **Stubs (Demo-Daten)**
+  fürs Frontend-Review. Die echte Umsetzung (Supabase-Tabellen, PDF in Storage, KI-Extraktion via
+  Claude, RLS für „redaktion") folgt im **`/backend`-Schritt** (Mutationen liefern aktuell bewusst
+  „Wird im Backend-Schritt umgesetzt").
+- **Navigation:** Link „Wissensbasis" im Admin-Menü (`app-header.tsx`). *Offen:* Sichtbarkeit des
+  Nav-Links auch für Rolle „redaktion" (aktuell Admin-Menü) — im Backend/Refine nachziehen.
+- **Neuer globaler Baustein (Design-System 3.1):** `src/components/page-overview.tsx`
+  (`PageOverview`) — kompakte KPI-/Chart-Übersicht (max. ~⅓ Höhe, leichtgewichtig, dezente
+  CSS-Aufbau-Animation) am Kopf **jeder** Seite; Funktion beginnt direkt darunter, ohne Scrollen
+  bedienbar. Auf der Wissensbasis: KPIs (Gesamt/Geprüft/Entwurf) + schlanker „Prüfstand"-Balken.
+  *Bestehende Seiten werden nach und nach nachgezogen.*
+- **Verifiziert:** `tsc --noEmit`, Lint und `npm run build` laufen fehlerfrei; Route
+  `/verwaltung/wissensbasis` kompiliert.
+
 ## QA Test Results
 _To be added by /qa_
 
