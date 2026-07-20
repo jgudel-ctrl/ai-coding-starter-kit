@@ -28,9 +28,10 @@
 | PROJ-22 | Kalender für blockierte Tage | ✅ Deployed | 2026-07-07 |
 | PROJ-28 | Hersteller-Verwaltung & Artikel-Zuordnung | ✅ Deployed | 2026-07-10 |
 | PROJ-29 | Wissensbasis (KI-Content-Fundament) | 🔵 Planned — Spec geschrieben; Fundament des Content-Epics: technische Quelldaten (Leitz-Lexikon + Hersteller) per PDF→KI-Extraktion→Prüfung, Rolle „Redaktion" | 2026-07-20 |
-| PROJ-30 | Themenvorschläge (wöchentlich, KI) | 🔵 Roadmap — Content-Epic: 1×/Woche ~20 Themenvorschläge aus der Wissensbasis unter Berücksichtigung bereits behandelter Themen; Themen müssen freigegeben werden, bevor Content entsteht | 2026-07-20 |
+| PROJ-30 | Themenvorschläge (wöchentlich, KI) | 🔵 Planned — Spec geschrieben; 1×/Woche ca. 5 Vorschläge (Titel+Aufhänger+Quell-Bezug) aus der Wissensbasis, Dedup gegen behandelte Themen; Zustände Freigeben/Ablehnen/Parken; nur Freigegebenes fließt in PROJ-31 | 2026-07-20 |
 | PROJ-31 | Content-Studio (Generierung + Redaktion + Lern-Loop) | 🔵 Planned — Spec geschrieben; Tonalität im Prototyp validiert. Regler=Stil, Freitext=nur fachliche Korrektur, jede Iteration gespeichert + Lern-Speicher; Sie-Form + neutral (keine Marke); nur für freigegebene Themen (PROJ-30), speist PROJ-32 | 2026-07-20 |
-| PROJ-32 | Publishing (Blog / Social Media / Newsletter) | 🔵 Roadmap — Content-Epic: freigegebene Inhalte auf allen Kanälen (Webseiten-Blog, Social Media, Newsletter) ausspielen | 2026-07-20 |
+| PROJ-32 | Multi-Channel-Content-Studio | 🔵 Planned — Spec geschrieben; Ein-Klick aus freigegebenem Artikel → alle Kanal-Pieces (Blog, Newsletter, LinkedIn, Instagram Post+Reel, Facebook Post+Reel), best-practice-angepasst; kanalgetreue Vorschau + Iterationsschleife je Piece (wie PROJ-31); Reels = Skript+Caption+Bildvorschläge | 2026-07-20 |
+| PROJ-33 | Redaktionskalender & Ausspielung | 🔵 Roadmap — Content-Epic: freigegebene Content-Pieces terminieren; Kalender mit automatischen Belegungs-Vorschlägen nach Kanal-Best-Practice (z.B. Newsletter 1×/Woche, Insta-Reel 3–4×/Woche) + tatsächliches Ausspielen (Kanal-Integrationen) | 2026-07-20 |
 
 ## Architektur-Dokumente
 
@@ -58,4 +59,4 @@
 - Vor jeder Code-Änderung: CLAUDE.md, docs/PRD.md und relevante Feature-Datei lesen.
 - Status in INDEX.md und Feature-Header immer synchron halten.
 
-## Next Available ID: PROJ-33
+## Next Available ID: PROJ-34
