@@ -251,6 +251,33 @@ Nutzer-Verwaltung) — dieselben Bausteine (Tabelle, Dialoge, Status-Badges), ni
 - **Verifiziert:** `tsc --noEmit`, Lint und `npm run build` laufen fehlerfrei; Route
   `/verwaltung/wissensbasis` kompiliert.
 
+## Implementierungsnotizen — Backend (2026-07-20)
+
+- **Migration** `supabase/migrations/20260720120000_PROJ-29_wissensbasis.sql`:
+  - Rollen-Typ `public.user_role` um **`redaktion`** erweitert (`ADD VALUE IF NOT EXISTS`).
+  - Tabellen `tms.knowledge_categories` (+ Seed Säge/Fräser/Bohrer · Holz/Kunststoff/Aluminium),
+    `tms.knowledge_documents` (Quell-PDFs), `tms.knowledge_entries` (Einträge, `technical_values`
+    als JSONB, Quelle flach, Status entwurf/geprueft) inkl. Indizes.
+  - **RLS** auf allen drei Tabellen + Helferfunktion `tms.is_content_manager()` (Redaktion/Admin,
+    Rollen-Vergleich über `roles::text[]`, damit die neue Enum-Value in derselben Transaktion sicher
+    ist); `GRANT ALL … TO service_role`.
+  - Privater **Storage-Bucket** `wissensbasis` für die PDFs.
+- **Server Actions** `src/lib/actions/wissensbasis.ts` (echt): DB-Zugriffe via
+  `createAdminClient({schema:"tms"})`, Auth/Rollen-Check (`canManageContent`) in **allen** Actions,
+  Suche mit escaptem `.or()`-Filter (wie orders.ts). Upload: PDF → Storage → `knowledge_documents`
+  → **KI-Extraktion** → Einträge als „entwurf".
+- **KI-Extraktion (key-ready)** über die Anthropic-API (direkter `fetch`, kein neues Paket):
+  reine, unit-getestete Logik (Prompt + robustes Parsen) in `wissensbasis-helpers.ts`
+  (`wissensbasis-helpers.test.ts`, 4/4 grün). Ohne Key liefert der Upload eine klare Meldung.
+- **Verifiziert:** `tsc --noEmit`, Lint, Unit-Tests und `npm run build` grün.
+
+### ⚠️ Offene, manuelle Schritte vor Nutzung (nicht durch mich ausgeführt)
+- [ ] **Migration auf die Produktions-DB anwenden** (RLS + Rollen-Erweiterung → braucht dein OK).
+- [ ] **`ANTHROPIC_API_KEY`** (und optional `ANTHROPIC_MODEL`, Default `claude-sonnet-5`) in
+  **`.env.local.example`** (dokumentieren) **und Produktions-Env** hinterlegen — dann ist die
+  KI-Extraktion aktiv. *(Die `.env`-Dateien waren für mich gesperrt.)*
+- [ ] **Nav-Sichtbarkeit** des Wissensbasis-Links auch für Rolle „redaktion" (aktuell Admin-Menü).
+
 ## QA Test Results
 _To be added by /qa_
 

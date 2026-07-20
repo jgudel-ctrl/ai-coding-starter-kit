@@ -27,7 +27,7 @@
 | PROJ-21 | Fahrer-Seite | ✅ Deployed | 2026-07-06 |
 | PROJ-22 | Kalender für blockierte Tage | ✅ Deployed | 2026-07-07 |
 | PROJ-28 | Hersteller-Verwaltung & Artikel-Zuordnung | ✅ Deployed | 2026-07-10 |
-| PROJ-29 | Wissensbasis (KI-Content-Fundament) | 🟡 In Progress — Frontend gebaut (Seite /verwaltung/wissensbasis: Upload · Filter/Suche · Tabelle · Detail/Prüfen; Rolle „redaktion" ergänzt); Server-Actions als Stub mit Demo-Daten. Nächster Schritt: /backend (DB, KI-Extraktion, RLS) | 2026-07-20 |
+| PROJ-29 | Wissensbasis (KI-Content-Fundament) | 🟡 In Progress — Frontend + Backend gebaut (Migration, RLS, echte Server-Actions, KI-Extraktion key-ready; tsc/Tests/Lint/Build grün). Offen (manuell): Migration auf Prod-DB anwenden + ANTHROPIC_API_KEY hinterlegen, dann /qa | 2026-07-20 |
 | PROJ-30 | Themenvorschläge (wöchentlich, KI) | 🔵 Planned — Spec geschrieben; 1×/Woche ca. 5 Vorschläge (Titel+Aufhänger+Quell-Bezug) aus der Wissensbasis, Dedup gegen behandelte Themen; Zustände Freigeben/Ablehnen/Parken; nur Freigegebenes fließt in PROJ-31 | 2026-07-20 |
 | PROJ-31 | Content-Studio (Generierung + Redaktion + Lern-Loop) | 🔵 Planned — Spec geschrieben; Tonalität im Prototyp validiert. Regler=Stil, Freitext=nur fachliche Korrektur, jede Iteration gespeichert + Lern-Speicher; Sie-Form + neutral (keine Marke); nur für freigegebene Themen (PROJ-30), speist PROJ-32 | 2026-07-20 |
 | PROJ-32 | Multi-Channel-Content-Studio | 🔵 Planned — Spec geschrieben; Ein-Klick aus freigegebenem Artikel → alle Kanal-Pieces (Blog, Newsletter, LinkedIn, Instagram Post+Reel, Facebook Post+Reel), best-practice-angepasst; kanalgetreue Vorschau + Iterationsschleife je Piece (wie PROJ-31); Reels = Skript+Caption+Bildvorschläge | 2026-07-20 |
