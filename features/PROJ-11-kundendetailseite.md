@@ -1,10 +1,10 @@
 # PROJ-11: Kundendetailseite (erweitert)
 
-**Status:** ✅ Deployed (2026-07-18) — Erweiterung (Bestellhistorie Produkttyp/Gruppierung/Donut-Chart) live auf tms.gudel-werkzeuge.de, gegen echte Kundendaten verifiziert (siehe Abschnitt „Deploy-Verlauf 2026-07-18")  
+**Status:** 🔵 Planned — Umsatz-Tab-Neubau (Spec, wartet auf „approved"). Bestellhistorie-Erweiterung weiterhin ✅ Deployed (2026-07-18), siehe Abschnitt „Deploy-Verlauf 2026-07-18"  
 **Projekt:** TMS 2.0  
 **Priorität:** Hoch  
 **Autor:** Klausi (KI-Entwickler)  
-**Datum:** 2026-07-02 (Erweiterung: 2026-07-17)
+**Datum:** 2026-07-02 (Erweiterung Bestellhistorie: 2026-07-17, Neubau Umsatz-Tab: 2026-07-21)
 
 ---
 
@@ -38,23 +38,111 @@ Bereits vorhanden und bleibt erhalten:
 - Speichern → Update in `partner_addresses` (SSOT = Supabase)
 - Abbrechen → Keine Änderung
 
-### 2.3 Umsatz-Anzeige
+### 2.3 Umsatz-Anzeige (Neubau 2026-07-21)
 
-**Balkendiagramm:**
-- Monatsumsätze (Jan–Dez)
-- Gesplittet in: Handelsware, Service, Sonderwerkzeug
-- Farben: Handelsware = Blau, Service = Grün, Sonderwerkzeug = Orange
-- Datenquelle: `mv_partner_monthly_revenue`
+**Werkstatt-Vergleich:** Bisher hing das Umsatz-Brett an einer Wand, die es
+in der Werkstatt gar nicht gibt (`mv_partner_monthly_revenue` existiert
+nicht in Produktion — der Tab zeigte im Live-Test nur einen Fehler). Wir
+bauen das Brett jetzt direkt auf dem echten Lagerbestand auf: den
+Rechnungspositionen (`invoice_items`), genau wie schon bei der
+Bestellhistorie. Jede Position wird — wo möglich — ihrem Artikel und
+darüber einer Warengruppe zugeordnet; diese Warengruppe ist bei TMS
+zugleich die "Rabattgruppe", weil pro Kunde und Warengruppe ein
+Rabattsatz hinterlegt ist (PROJ-26).
 
-**Jahres-Switch:**
-- Dropdown oben rechts im Diagramm
-- Verfügbare Jahre dynamisch aus der Datenbank
-- Standard: aktuelles Jahr
+**Wichtiger Kurswechsel gegenüber der alten Spec:** Die alte Drei-Farben-
+Aufteilung (Handelsware/Service/Sonderwerkzeug) basierte auf
+`invoice_items.revenue_category` — diese Spalte ist zu 100% `NULL` und
+war nie nutzbar. Ab jetzt gilt durchgängig dieselbe Klassifizierung wie in
+der Bestellhistorie (Abschnitt 2.4.1): `products.type = 'PRODUCT'` →
+Handelsware, `products.type = 'SERVICE'` → Service. "Sonderwerkzeug" als
+eigene Kategorie entfällt ersatzlos (keine verlässliche Datenquelle dafür).
 
-**Werte-Anzeige:**
-- Umsatz pro Kategorie + Gesamt pro Monat
-- Summe des ausgewählten Jahres
-- Anzahl Rechnungen
+#### Datengrundlage
+
+- **Basis:** `tms.invoice_items`, direkt abgefragt (keine Materialized
+  View für Live-Werte auf der Detailseite) — analog zum bereits deployten
+  Muster in `orders.ts` (`invoice_items.article_number ↔ products.number`,
+  Preise in Cent → `centsToEuro()`).
+- **Klassifizierung:** Join zu `tms.products` liefert `type`
+  (PRODUCT/SERVICE) und `group_id` → `tms.position_groups` (Warengruppe =
+  Rabattgruppe). Positionen ohne Produkt-Match bleiben **im
+  Gesamtumsatz enthalten**, fehlen aber in der Handel/Service-Aufteilung
+  und in der Rabattgruppen-Aufteilung (siehe „Nicht zugeordnet" unten).
+- **Jahresumsatz-Definition (wichtig, siehe Decision Log):**
+  **Gesamtumsatz = Summe ALLER `invoice_items` des Kunden im gewählten
+  Zeitraum**, unabhängig von Produkt-Zuordnung. Diese Zahl ist die
+  „amtliche" Jahresumsatz-Kennzahl und wird an anderer Stelle (z.B.
+  Kundenliste, künftige Auswertungen) wiederverwendet — sie darf durch
+  fehlende Artikel-Stammdaten nicht künstlich sinken.
+- **Persistenz:** Neue Materialized View `tms.mv_partner_revenue`
+  (diesmal als **echte, getrackte Migration** in `supabase/migrations/`,
+  nicht wie die alte View nur „in Produktion vorhanden"), aggregiert pro
+  Kunde × Monat × Jahr: Gesamtumsatz, Handelsumsatz, Serviceumsatz,
+  nicht zugeordneter Umsatz, sowie Umsatz je Rabattgruppe. Refresh:
+  nächtlich (z.B. `pg_cron` oder Deploy-Hook — Detail-Entscheidung im
+  `/architecture`-Schritt). Das rollierende 365-Tage-Fenster wird aus den
+  Monats-/Tageswerten der View berechnet, nicht separat materialisiert.
+
+#### KPI-Karten (oberer Bereich, dynamisch)
+
+| KPI | Beschreibung |
+|-----|--------------|
+| **Gesamtumsatz** (Hauptfokus, größte Karte) | Summe aller `invoice_items` im gewählten Zeitraum |
+| **Handelsumsatz** | Summe `products.type = 'PRODUCT'` im Zeitraum — anklickbar (filtert Chart) |
+| **Serviceumsatz** | Summe `products.type = 'SERVICE'` im Zeitraum — anklickbar (filtert Chart) |
+| **Nicht zugeordnet** | Differenz Gesamtumsatz − (Handel + Service); nur sichtbar wenn > 0 |
+| **Anzahl Rechnungen** | Distinct `invoices.id` im Zeitraum |
+| **Ø Bestellwert** | Gesamtumsatz ÷ Anzahl Rechnungen im Zeitraum |
+
+Jede KPI-Karte (außer „Nicht zugeordnet") zeigt zusätzlich eine
+**Vergleichs-Badge** zur Vorperiode (grün bei Zuwachs, rot bei Rückgang,
+in %):
+- Zeitraum „Letzte 12 Monate" (rollierend) → Vergleich mit den 365 Tagen
+  davor
+- Zeitraum Kalenderjahr (z.B. 2025) → Vergleich mit dem kompletten Vorjahr
+  (2024)
+- Zeitraum „Gesamt" → **keine Vergleichs-Badge** (keine sinnvolle Baseline)
+
+#### Chart (dynamisch, unterhalb der KPIs)
+
+- **Standard (keine KPI angeklickt):** Gestapeltes Monats-Balkendiagramm,
+  zwei Kategorien: Handelsware / Service (Farben aus dem Design-System,
+  siehe Bestellhistorie-Palette)
+- **Klick auf KPI „Handelsumsatz":** Chart zeigt nur Handelsumsatz pro
+  Monat, gesplittet nach Rabattgruppe (`position_groups`) — ein
+  Balkensegment pro Gruppe, gleiches Interaktionsmuster wie das
+  Donut-Chart in der Bestellhistorie (Toggle: erneuter Klick auf die
+  aktive KPI hebt den Filter wieder auf)
+- **Klick auf KPI „Serviceumsatz":** analog, nur Serviceumsatz gesplittet
+  nach Rabattgruppe
+- Chart-Zeitachse passt sich an den gewählten Zeitraum an: 12 Monate
+  rollierend, 12 Monate eines Kalenderjahres, oder — bei „Gesamt" —
+  Jahres-Balken statt Monats-Balken (sonst unleserlich bei mehreren
+  Jahren Historie)
+
+#### Zeitraum-Dropdown
+
+- **Default: „Letzte 12 Monate"** (rollierend, heute − 365 Tage bis
+  heute) — im UI bewusst NICHT „YTD" genannt, um Verwechslung mit
+  Kalenderjahr-YTD zu vermeiden
+- **Kalenderjahre**, dynamisch aus der Datenbank (ältestes Jahr mit
+  Rechnungsdaten bis aktuelles Jahr, absteigend sortiert)
+- **„Gesamt"** — gesamter gespeicherter Zeitraum aller `invoice_items`
+  des Kunden, keine Vergleichs-Badge, Chart wechselt auf Jahres-Balken
+
+#### Edge Cases
+
+- Kunde ohne jegliche `invoice_items` → alle KPIs zeigen 0, Chart zeigt
+  Leerzustand, keine Vergleichs-Badges
+- Kunde mit Umsatz nur im Vorperioden-Zeitraum, aber 0 im aktuellen →
+  Vergleichs-Badge zeigt „-100%" (rot), kein Absturz durch Division durch 0
+  im aktuellen Zeitraum (Vergleich wird umgekehrt: Basis ist immer die
+  Vorperiode)
+- Vorperiode selbst = 0 (z.B. Neukunde) → keine Prozent-Badge anzeigen
+  (Division durch 0 vermeiden), stattdessen Hinweis „neu" o.ä.
+- Rabattgruppen-Chart bei Klick auf Handel/Service-KPI, aber Kunde hat
+  Positionen ohne Gruppen-Zuordnung → zusätzliches Segment „Ohne Gruppe"
 
 ### 2.4 Bestellhistorie (NUR Trade Goods)
 
@@ -143,11 +231,16 @@ Tortenstück zeigt nur die Teile aus diesem Fach.
 **Bento Grid — untere Reihe:**
 - **Karte 4 (breit):** Kontaktliste mit "+" Button
 
-### Tab: Umsatz
+### Tab: Umsatz (Neubau 2026-07-21)
 
 **Bento Grid:**
-- **Karte 1 (groß, breit):** Balkendiagramm mit Jahres-Dropdown
-- **Karte 2 (unten):** Summen-Karte (Gesamtumsatz, Anzahl Rechnungen)
+- **Kopfzeile:** Zeitraum-Dropdown (Letzte 12 Monate / Kalenderjahre / Gesamt)
+- **Karte 1 (KPI-Reihe, volle Breite):** Gesamtumsatz (groß), Handelsumsatz,
+  Serviceumsatz, Ø Bestellwert, Anzahl Rechnungen — je mit
+  Vergleichs-Badge; „Nicht zugeordnet" nur wenn > 0
+- **Karte 2 (groß, breit, darunter):** Chart — dynamisch je nach
+  KPI-Auswahl (Standard: Handel/Service gestapelt; bei Klick auf
+  Handel/Service-KPI: Rabattgruppen-Split)
 
 ### Tab: Bestellhistorie
 
@@ -166,13 +259,29 @@ Tortenstück zeigt nur die Teile aus diesem Fach.
 - [ ] Adress-Änderungen werden in Supabase gespeichert
 - [ ] Nach Speichern wird die Ansicht aktualisiert
 
-### Umsatz
-- [ ] Balkendiagramm zeigt 12 Monate
-- [ ] Drei Farben für Handel/Service/Sonderwerkzeug
-- [ ] Dropdown zeigt alle verfügbaren Jahre
-- [ ] Jahreswechsel aktualisiert Diagramm sofort
-- [ ] Summen werden korrekt angezeigt
-- [ ] Responsive: Diagramm passt sich an
+### Umsatz (Neubau 2026-07-21)
+- [ ] Datenquelle: direkte `invoice_items`-Abfrage bzw. neue, per Migration
+  getrackte `mv_partner_revenue` — **nicht** die alte
+  `mv_partner_monthly_revenue`
+- [ ] Gesamtumsatz-KPI zählt ALLE `invoice_items` im Zeitraum (auch ohne
+  Produkt-Match) — nicht künstlich niedriger als der tatsächliche
+  Rechnungsumsatz
+- [ ] Handelsumsatz = `products.type = 'PRODUCT'`, Serviceumsatz =
+  `products.type = 'SERVICE'` (keine „Sonderwerkzeug"-Kategorie mehr)
+- [ ] „Nicht zugeordnet"-KPI erscheint nur wenn > 0
+- [ ] Default-Zeitraum: „Letzte 12 Monate" (rollierend, heute − 365 Tage)
+- [ ] Dropdown zeigt dynamisch alle Kalenderjahre mit Daten + „Gesamt"
+- [ ] Zeitraumwechsel aktualisiert KPIs + Chart sofort
+- [ ] Vergleichs-Badge korrekt: rollierend → Vorperiode (365 Tage davor),
+  Kalenderjahr → Vorjahr, „Gesamt" → keine Badge
+- [ ] Vergleichs-Badge: grün bei Zuwachs, rot bei Rückgang, kein Absturz
+  bei Vorperiode = 0
+- [ ] Klick auf KPI „Handelsumsatz" filtert Chart auf Handelsumsatz,
+  gesplittet nach Rabattgruppe; erneuter Klick hebt Filter auf (Toggle)
+- [ ] Klick auf KPI „Serviceumsatz" filtert Chart analog nach Rabattgruppe
+- [ ] Ø Bestellwert und Anzahl Rechnungen korrekt berechnet
+- [ ] Responsive: KPI-Reihe und Chart passen sich an (Mobile: KPIs
+  gestapelt)
 
 ### Bestellhistorie
 - [ ] NUR Trade Goods (keine Service/Sonderwerkzeug)
@@ -220,8 +329,9 @@ src/
           customer-header.tsx       # Kopfzeile mit Name + Status
           address-card.tsx          # Adress-Karte mit Edit-Button
           address-edit-modal.tsx    # Modal für Adress-Edit
-          revenue-chart.tsx         # Balkendiagramm (Recharts)
-          revenue-year-selector.tsx # Jahres-Dropdown
+          revenue-kpi-cards.tsx     # KPI-Karten (Gesamt/Handel/Service/Ø/Anzahl) mit Vergleichs-Badge
+          revenue-chart.tsx         # Balkendiagramm (Recharts), dynamisch: Kategorie- oder Rabattgruppen-Split
+          revenue-period-selector.tsx # Zeitraum-Dropdown (Letzte 12 Monate / Kalenderjahre / Gesamt)
           order-history-table.tsx   # Bestellhistorie-Tabelle
           order-history-filters.tsx # Filter für Bestellhistorie
           contacts-list.tsx         # Kontaktliste
@@ -244,12 +354,50 @@ SELECT * FROM tms.partner_addresses
 WHERE partner_id = :id AND address_type = 'billing' AND is_default = true
 ```
 
-**Umsatz (Materialized View):**
+**Umsatz (Neubau 2026-07-21 — direkt aus `invoice_items`, KEINE alte View mehr):**
+
+Gesamt- und Kategorie-Summen für einen Zeitraum (rollierend, Kalenderjahr
+oder „Gesamt"), analog zum Bestellhistorie-Muster (`article_number ↔
+products.number`, Cent → Euro):
 ```sql
-SELECT * FROM tms.mv_partner_monthly_revenue
-WHERE partner_id = :id AND year = :year
-ORDER BY month
+SELECT
+  ii.total_price_net,
+  p.type AS product_type,
+  pg.id AS group_id,
+  pg.name AS group_name,
+  i.document_date
+FROM tms.invoice_items ii
+JOIN tms.invoices i ON ii.invoice_id = i.id
+LEFT JOIN tms.products p ON p.number = ii.article_number
+LEFT JOIN tms.position_groups pg ON pg.id = p.group_id
+WHERE i.partner_id = :id
+  AND i.document_date BETWEEN :from AND :to
 ```
+Aggregation (Summe gesamt, Summe je `product_type`, Summe je
+`group_id` innerhalb PRODUCT/SERVICE) erfolgt in der App-Schicht
+(`revenue.ts`), analog zu `buildGroupStats` in `orders-helpers.ts`.
+
+**Neue Materialized View `tms.mv_partner_revenue` (getrackte Migration,
+nächtlicher Refresh):**
+```sql
+CREATE MATERIALIZED VIEW tms.mv_partner_revenue AS
+SELECT
+  i.partner_id,
+  date_trunc('month', i.document_date) AS month,
+  SUM(ii.total_price_net) AS revenue_total,
+  SUM(ii.total_price_net) FILTER (WHERE p.type = 'PRODUCT') AS revenue_product,
+  SUM(ii.total_price_net) FILTER (WHERE p.type = 'SERVICE') AS revenue_service,
+  pg.id AS group_id,
+  SUM(ii.total_price_net) FILTER (WHERE pg.id IS NOT NULL) AS revenue_group,
+  COUNT(DISTINCT i.id) AS invoice_count
+FROM tms.invoice_items ii
+JOIN tms.invoices i ON ii.invoice_id = i.id
+LEFT JOIN tms.products p ON p.number = ii.article_number
+LEFT JOIN tms.position_groups pg ON pg.id = p.group_id
+GROUP BY i.partner_id, date_trunc('month', i.document_date), pg.id;
+```
+*(Finale Spaltenaufteilung/Indizes werden im `/architecture`-Schritt
+festgelegt — hier nur das fachliche Aggregationsprinzip.)*
 
 **Bestellhistorie (NUR Trade):**
 ```sql
@@ -333,8 +481,10 @@ wiederverwenden statt duplizieren.
 
 - ✅ PROJ-1 (Auth) — erledigt
 - ✅ PROJ-2a.1 (Kunden-Stammdaten) — erledigt
-- ✅ Tabellen `partners`, `partner_addresses`, `partner_contacts`, `invoices`, `invoice_items` — existieren
-- ✅ Materialized View `mv_partner_monthly_revenue` — existiert
+- ✅ Tabellen `partners`, `partner_addresses`, `partner_contacts`, `invoices`, `invoice_items` — existieren (nur in Produktion, nicht in `supabase/migrations/` getrackt — bekanntes Schema-Drift-Risiko)
+- ✅ PROJ-28 (`tms.products`, `tms.position_groups`) — existiert, bereits von Bestellhistorie genutzt
+- ✅ PROJ-26 (`tms.partner_discounts` — Kunde × Rabattgruppe) — existiert, Grundlage für „Rabattgruppen" im Umsatz-Tab
+- ❌ Materialized View `mv_partner_monthly_revenue` — **existiert NICHT in Produktion**, war Ursache des Deploy-Rollbacks 2026-07-18. Wird durch Neubau in Abschnitt 2.3 ersetzt (direkte Abfrage + neue, getrackte `mv_partner_revenue`).
 
 ---
 
@@ -350,6 +500,52 @@ wiederverwenden statt duplizieren.
 
 ## 9. Decision Log
 
+### Produkt (2026-07-21 — Refine: Umsatz-Tab Neubau)
+- **Auslöser:** `mv_partner_monthly_revenue` existiert nicht in Produktion
+  (Deploy-Rollback 2026-07-18) — der komplette Umsatz-Tab war seit dem
+  ersten Deploy funktionsunfähig. Statt die alte View nachträglich
+  anzulegen, wird die Datengrundlage auf direkte `invoice_items`-Abfragen
+  umgestellt (analog zur bereits funktionierenden Bestellhistorie).
+- **„Letzte 12 Monate" statt „YTD" als Default:** rollierendes
+  365-Tage-Fenster (heute − 365 Tage), NICHT Kalender-YTD (1. Januar bis
+  heute) — bewusst anders benannt im UI, um Verwechslung mit den
+  ebenfalls wählbaren Kalenderjahren zu vermeiden.
+- **Gesamtumsatz zählt ALLE `invoice_items`**, auch ohne Produkt-Match —
+  da diese Kennzahl laut User an anderer Stelle wiederverwendet wird und
+  nicht durch fehlende Artikel-Stammdaten künstlich sinken darf. Handel/
+  Service-Split ist eine Teilmengen-Aufteilung dieser Gesamtzahl, keine
+  eigene Quelle der Wahrheit.
+- **„Sonderwerkzeug" als dritte Kategorie entfällt** (basierte auf der
+  zu 100% `NULL`-en Spalte `revenue_category`, nie nutzbar). Nur noch
+  Handelsware/Service, konsistent mit Bestellhistorie.
+- **„Rabattgruppen" = `tms.position_groups`**, dieselbe Dimension wie die
+  „Artikelgruppen" in der Bestellhistorie, verknüpft über
+  `invoice_items.article_number → products.number → products.group_id`.
+  Genannt „Rabattgruppe" im Umsatz-Kontext, weil PROJ-26 pro Kunde ×
+  Gruppe einen Rabattsatz in `tms.partner_discounts` hinterlegt — keine
+  neue Tabelle, nur andere Bezeichnung derselben Gruppierung.
+- **Zusätzliche KPIs vorgeschlagen und übernommen:** „Anzahl Rechnungen"
+  und „Ø Bestellwert" wurden im Refine als sinnvolle Ergänzung
+  identifiziert (User hatte explizit nach weiteren Kennzahlen gefragt)
+  und in die Spec aufgenommen — siehe Open Questions zur finalen
+  Bestätigung.
+
+### Technisch (2026-07-21 — Umsatz-Tab Neubau)
+- **Persistenz über neue, getrackte Materialized View
+  `tms.mv_partner_revenue`** statt Live-Aggregation bei jedem Request —
+  wichtig, da der Jahresumsatz auch in Listen-/Sortier-Abfragen
+  (`getPartnersWithRevenue`) verwendet wird, wo eine Live-Berechnung pro
+  Zeile zu langsam wäre. Anders als die alte View wird diese **als
+  Migration in `supabase/migrations/` ausgeliefert** — das war die
+  eigentliche Ursache des Deploy-Rollbacks am 2026-07-18 (View „existierte"
+  nur als Annahme in Spec/Code, nie als echte DB-Migration).
+- **Refresh-Strategie (nächtlich)** wird im `/architecture`-Schritt
+  konkretisiert (`pg_cron` vs. Deploy-Hook vs. externer Scheduler) — hier
+  nur als Anforderung festgehalten.
+- Wiederverwendung der bestehenden `article_number ↔ products.number`
+  Join-Logik und Cent→Euro-Konvertierung aus `orders.ts`, um keine zweite,
+  abweichende Implementierung derselben Verknüpfung zu erzeugen.
+
 ### Produkt (2026-07-17 — Refine: Bestellhistorie Produkttyp/Gruppierung/Donut-Chart)
 - **Kennzahl im Donut-Chart:** Anzahl Bestellpositionen je Artikelgruppe (nicht Mengen-Summe). Begründung: User-Beispiel "10 mal ein HW Sägeblatt gekauft" bezieht sich auf Anzahl der Vorkommnisse, nicht auf Stückzahl je Position.
 - **Segment-Klick-Verhalten:** Toggle — erneuter Klick auf aktives Segment hebt den Filter auf. Dropdown bietet zusätzlich "Alle" als expliziten Reset.
@@ -364,6 +560,22 @@ wiederverwenden statt duplizieren.
 - [x] Kennzahl im Donut-Chart = Anzahl Bestellpositionen (nicht Mengen-Summe) → bestätigt (2026-07-17)
 - [x] Toggle-Verhalten beim erneuten Klick auf ein aktives Segment → bestätigt (2026-07-17)
 - [x] Ausblenden von Positionen ohne Produkt-Match (statt z.B. "unbekannt" anzuzeigen) → bestätigt (2026-07-17)
+- [x] Default-Zeitraum = rollierende 365 Tage ("Letzte 12 Monate"), nicht Kalender-YTD → bestätigt (2026-07-21)
+- [x] Gesamtumsatz zählt ALLE `invoice_items` (nicht nur produkt-zugeordnete) → bestätigt (2026-07-21)
+- [x] Jahresumsatz-Persistenz über neue, getrackte Materialized View → bestätigt (2026-07-21)
+- [x] "Sonderwerkzeug"-Kategorie entfällt ersatzlos → bestätigt (2026-07-21)
+- [ ] Zusätzliche KPIs „Anzahl Rechnungen" und „Ø Bestellwert" — im Refine
+  vorgeschlagen, noch nicht explizit vom User bestätigt. Vor „approved"
+  final absegnen oder streichen.
+- [ ] Refresh-Zyklus von `mv_partner_revenue` (nächtlich vorgesehen) —
+  reicht das, oder muss der Umsatz nach frischem Easybill-Sync sofort
+  aktuell sein? Falls ja: Refresh an bestehenden Sync-Job koppeln statt
+  reinem Zeitplan (Detail-Entscheidung im `/architecture`-Schritt).
+- [ ] Bekanntes Schema-Drift-Risiko: `invoice_items`, `invoices`,
+  `products`, `position_groups`, `partner_discounts` existieren nur in
+  Produktion, nicht in `supabase/migrations/`. Soll dieses Refine/die
+  Folge-Architektur diese Lücke nachträglich schließen (Migrationen aus
+  Ist-Zustand generieren), oder bleibt das ein separates Ticket?
 
 ---
 
@@ -746,11 +958,18 @@ Alle Blocker behoben und live verifiziert:
   Dropdown-Sync + Toggle funktionieren, keine Server-5xx. Alle Akzeptanzkriterien
   Abschnitt 4 „Bestellhistorie" erfüllt.
 
-### Weiterhin offen (SEPARATE Tickets, nicht Teil von PROJ-11)
-- Umsatz-Tab: fehlende Materialized View `mv_partner_monthly_revenue`.
-- `invoice_items.revenue_category` komplett NULL — falls fachlich eine echte
-  Umsatzkategorisierung gebraucht wird, eigene Pipeline nötig.
-- Kein echtes Staging (docker-compose deployt immer nach Production).
+### Weiterhin offen
+- ~~Umsatz-Tab: fehlende Materialized View `mv_partner_monthly_revenue`~~ →
+  **wird durch diesen Refine (2026-07-21) direkt adressiert**, siehe
+  Abschnitt 2.3 (Neubau auf `invoice_items`-Basis + neue, getrackte
+  `mv_partner_revenue`). Kein separates Ticket mehr nötig.
+- ~~`invoice_items.revenue_category` komplett NULL~~ → gelöst durch
+  Umstellung auf `products.type` (PRODUCT/SERVICE), siehe Abschnitt 2.3.
+- **SEPARATES Ticket, nicht Teil von PROJ-11:** Kein echtes Staging
+  (docker-compose deployt immer nach Production).
+- **SEPARATES Ticket, nicht Teil von PROJ-11:** Schema-Drift — mehrere
+  Tabellen existieren nur in Produktion, nicht in
+  `supabase/migrations/` (siehe Open Questions, Abschnitt 10).
 
 ---
 
