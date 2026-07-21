@@ -428,13 +428,17 @@ wiederverwenden statt duplizieren.
 - **Schema-Drift-Bereinigung ist explizit NICHT Teil dieses Umbaus** —
   eigenes, separates Ticket.
 
-### Technisch (2026-07-21)
-- Neue Materialized View **`mv_partner_revenue`** ersetzt die nie
-  existierende `mv_partner_monthly_revenue` — diesmal als echte, getrackte
-  Migration (nicht nur „angenommen vorhanden").
+### Technisch (2026-07-21, korrigiert bei /architecture)
+- **Kein neues DB-Objekt.** Statt der ursprünglich vorgeschlagenen neuen
+  Materialized View `mv_partner_revenue` wird direkt aus `invoice_items`
+  berechnet — exakt das Muster, das die bereits produktiv laufende
+  Bestellhistorie verwendet (kein Refresh-Risiko, keine neue Migration nötig,
+  vermeidet die Fehlerklasse, die am 18.07. zum Rollback führte).
 - Gleiche Join-Logik wie Bestellhistorie:
   `invoice_items.article_number → products.number → products.type`,
   `products.group_id → position_groups` für die Rabattgruppen-Aufschlüsselung.
+- Falls Performance bei sehr großen Kunden später zum Problem wird, kann eine
+  View als Optimierung nachgerüstet werden — nicht Teil dieses Umbaus.
 
 ### Produkt (2026-07-17 — Refine: Bestellhistorie Produkttyp/Gruppierung/Donut-Chart)
 - **Kennzahl im Donut-Chart:** Anzahl Bestellpositionen je Artikelgruppe (nicht Mengen-Summe). Begründung: User-Beispiel "10 mal ein HW Sägeblatt gekauft" bezieht sich auf Anzahl der Vorkommnisse, nicht auf Stückzahl je Position.
@@ -598,6 +602,129 @@ Projekt bisher keine Testinfrastruktur (nur `roles.test.ts` und
 Ein neues Mocking-Setup nur für diese Erweiterung einzuführen wäre
 Over-Engineering — die Verifikation erfolgt stattdessen im `/qa`-Schritt
 gegen echte Daten (siehe Akzeptanzkriterien Abschnitt 4).
+
+---
+
+## 15. Tech Design (Solution Architect) — Umsatz-Tab Neubau (2026-07-21)
+
+**Werkstatt-Vergleich:** Die alte Umsatz-Kachel hing an einem Fach, das es in
+der echten Werkstatt nie gab (die Materialized View existierte nie in
+Produktion) — deshalb war sie immer leer. Der Neubau hängt die Kachel
+stattdessen direkt an den Rechnungsordner, denselben, den die
+Bestellhistorie schon erfolgreich nutzt. Kein neues Lager (keine neue
+Datenbank-Tabelle/-View), nur eine neue Auswertung des Bestehenden.
+
+### A) Komponenten-Struktur
+
+```
+Tab: Umsatz
+├── KPI-Reihe (NEU, ersetzt bisherige Summen-Karte)
+│   ├── Gesamtumsatz-Kachel (klickbar, mit Vergleichs-Badge %)
+│   ├── Handelsumsatz-Kachel (klickbar, mit Vergleichs-Badge %)
+│   ├── Serviceumsatz-Kachel (klickbar, mit Vergleichs-Badge %)
+│   └── "Nicht zugeordnet"-Kachel (nur sichtbar, wenn > 0 im Zeitraum)
+├── Zeitraum-Dropdown (oben rechts): Letzte 12 Monate (Standard) │
+│   Kalenderjahre (dynamisch) │ Gesamt
+└── Umsatz-Chart (NEU, ersetzt bisheriges Balkendiagramm)
+    ├── Standardansicht: Balken pro Monat, gestapelt Handel/Service
+    │   (+ Nicht zugeordnet)
+    └── Gefilterte Ansicht (nach KPI-Klick): Balken pro Monat, gestapelt
+        nach Rabattgruppe — nur für die angeklickte Kategorie
+```
+
+Die KPI-Reihe und das Chart sind **ein zusammenhängender Baustein**: Klick
+auf eine KPI ändert nur, WIE das Chart darunter aufgeschlüsselt wird — die
+KPI-Werte selbst ändern sich nicht durch den Chart-Klick, nur durch den
+Zeitraum-Dropdown. Die bisherige separate "Summen-Karte" entfällt, ihre
+Funktion übernimmt die neue KPI-Reihe.
+
+**Aufräumen bestehender Code-Verwirrung:** Aktuell existieren zwei
+unterschiedliche, sich überschneidende Umsatz-Komponenten
+(`revenue-chart.tsx` mit eingebauter KPI-Anzeige, sowie eine zweite,
+inzwischen ungenutzte `revenue-summary.tsx`). Der Neubau ersetzt beide durch
+eine klare Aufteilung: eine KPI-Reihen-Komponente + eine Chart-Komponente,
+die verwaiste Datei wird entfernt.
+
+### B) Datenmodell (fachlich)
+
+Keine neuen Tabellen oder Datenbank-Objekte. Alles wird direkt aus den
+bereits vorhandenen Rechnungspositionen berechnet — genau wie bei der
+Bestellhistorie:
+
+- **Zeitraum bestimmt die Auswahl der Rechnungspositionen** (Rechnungsdatum
+  innerhalb der letzten 365 Tage / im gewählten Kalenderjahr / ganze
+  Historie)
+- **Kategorie** (Handel/Service/Nicht zugeordnet) ergibt sich pro Position
+  aus der Artikel-Art des verknüpften Artikel-Stammdatensatzes (dieselbe
+  Verknüpfung wie in der Bestellhistorie)
+- **Rabattgruppe** ergibt sich pro Position aus der Warengruppe des
+  verknüpften Artikels (dieselbe Verknüpfung wie im Donut-Chart der
+  Bestellhistorie)
+- **Vergleichswert** ist dieselbe Berechnung, nur für die vorherige,
+  gleich lange Periode (365 Tage davor bzw. Vorjahr)
+
+Der "Jahresumsatz" ist also kein gespeicherter Wert, sondern das Ergebnis
+einer Live-Berechnung über die Rechnungspositionen im gewählten Zeitraum —
+das entspricht der Erkenntnis, dass hier keine zusätzliche Datenablage
+nötig ist, solange die Berechnung schnell genug bleibt (siehe Tech-
+Entscheidungen).
+
+Der gewählte Zeitraum und die aktive Chart-Kategorie sind reiner
+Anzeige-Zustand auf der Seite — nichts davon wird gespeichert, beim
+nächsten Öffnen der Seite startet wieder der Standard (Letzte 12 Monate,
+kein Kategorie-Filter).
+
+### C) Tech-Entscheidungen (Begründung)
+
+- **Keine neue Materialized View.** Ursprünglich war eine neue, eigens
+  migrierte View (`mv_partner_revenue`) angedacht, um den "Jahresumsatz"
+  vorab zu berechnen. Entscheidung: stattdessen live aus den
+  Rechnungspositionen berechnen — genau das Muster, das die Bestellhistorie
+  bereits produktiv nutzt. Vorteil: kein neues Datenbank-Objekt, kein
+  Refresh-Zeitplan, keine Wiederholung der Fehlerklasse, die am 18.07. zum
+  Produktions-Rollback führte (eine angenommene, aber nie migrierte View).
+  Falls die Live-Berechnung bei sehr großen Kunden spürbar langsam wird,
+  kann eine View später als reine Performance-Optimierung nachgerüstet
+  werden — das ist kein Blocker für diesen Umbau.
+- **Wiederverwendung der Bestellhistorie-Verknüpfung:** Artikel-Art und
+  Warengruppe werden über dieselbe, bereits produktiv geprüfte Verknüpfung
+  ermittelt wie in der Bestellhistorie (Artikelnummer → Artikel-Stammdaten →
+  Warengruppe). Keine neue Verknüpfungslogik, kein Risiko neuer
+  Dateninkonsistenzen.
+- **Batchweises Nachladen der Artikel-Zuordnung:** Wie in der
+  Bestellhistorie werden Artikelnummern in Blöcken gegen den Artikelstamm
+  abgeglichen (statt aller Artikelnummern auf einmal), um die
+  "Adressen-zu-lang"-Problematik zu vermeiden, die beim letzten Deploy schon
+  einmal aufgetreten war.
+- **Zeitraum- und Kategorie-Filterung serverseitig:** Wie beim
+  bestehenden Zeitraum-/Suchfilter der Bestellhistorie wird direkt in der
+  Datenbank-Abfrage gefiltert, nicht erst im Browser — bleibt schnell auch
+  bei Kunden mit sehr vielen Rechnungen.
+- **Gleiches visuelles Muster wie Bestellhistorie:** Gleiche
+  Diagramm-Bibliothek, gleiche Design-System-Farben, gleiches
+  Toggle-Verhalten bei Kategorie-Klick (aktive Kategorie erneut anklicken
+  hebt den Filter wieder auf) — einheitliches Erscheinungsbild, kein neues
+  Erlern-Muster für Nutzer.
+- **Aufräumen der doppelten Altkomponenten** (`revenue-summary.tsx`
+  verwaist, `revenue-chart.tsx` überladen): wird im Zuge dieses Umbaus durch
+  die neue, klar getrennte KPI-/Chart-Struktur ersetzt, nicht parallel
+  weitergeführt.
+
+### D) Abhängigkeiten (Packages)
+
+Keine neuen Packages nötig — Diagramm-Bibliothek (Recharts) und
+Dropdown-Baustein sind bereits im Projekt vorhanden und werden nur
+wiederverwendet.
+
+## 16. Technical Decisions (Architektur, 2026-07-21)
+
+| Decision | Rationale | Date |
+|----------|-----------|------|
+| Keine neue Materialized View — Live-Berechnung direkt aus `invoice_items`, analog Bestellhistorie | Vermeidet neues DB-Objekt/Refresh-Risiko; genau die Fehlerklasse, die am 18.07. zum Rollback führte, wird nicht wiederholt | 2026-07-21 |
+| Wiederverwendung der Artikel-Art-/Warengruppen-Verknüpfung aus der Bestellhistorie (kein neuer Verknüpfungscode) | Vermeidet Dateninkonsistenzen, nutzt bereits produktiv geprüfte Logik | 2026-07-21 |
+| Batchweiser Abgleich der Artikelnummern gegen den Artikelstamm (statt Gesamtkatalog auf einmal) | Vermeidet die "Adressen-zu-lang"-Problematik aus BUG-5 (18.07.) erneut | 2026-07-21 |
+| Zeitraum-/Kategorie-Filterung serverseitig statt im Browser | Bleibt performant auch bei Kunden mit sehr vielen Rechnungen | 2026-07-21 |
+| Zusammenlegen der doppelten Altkomponenten (`revenue-summary.tsx`, `revenue-chart.tsx`) in eine klare KPI-/Chart-Struktur | Beseitigt bestehende Code-Verwirrung/Redundanz, statt sie fortzuführen | 2026-07-21 |
 
 ---
 

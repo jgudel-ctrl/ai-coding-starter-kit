@@ -5,6 +5,7 @@
 ## Legende
 
 - **🔵 Planned** — Geplant, noch nicht gestartet
+- **🟣 Architected** — Architektur festgelegt, bereit für /frontend + /backend
 - **🟡 In Progress** — In Bearbeitung
 - **🟠 In Review** — Wartet auf Review/Freigabe
 - **✅ Deployed** — Live
@@ -16,7 +17,7 @@
 | ID | Name | Status | Letzte Änderung |
 |----|------|--------|-----------------|
 | PROJ-1 | Auth & Rollen | ✅ Deployed | 2026-06-18 |
-| PROJ-11 | Kundendetailseite | 🔵 Planned — Umsatz-Tab komplett neu aufgebaut (invoice_items statt nie existierender mv_partner_monthly_revenue), Spec approved 2026-07-21, bereit für /architecture. Bestellhistorie-Erweiterung bleibt ✅ Deployed (2026-07-18, 129 Positionen bei Bod'or KTM verifiziert) | 2026-07-21 |
+| PROJ-11 | Kundendetailseite | 🟣 Architected — Umsatz-Tab-Neubau: Architektur festgelegt (Live-Berechnung aus invoice_items statt neuer Materialized View, analog Bestellhistorie), bereit für /frontend + /backend. Bestellhistorie-Erweiterung bleibt ✅ Deployed (2026-07-18, 129 Positionen bei Bod'or KTM verifiziert) | 2026-07-21 |
 | PROJ-14 | Umsatz-Service-Icon Fix | ✅ Deployed | 2026-07-02 |
 | PROJ-15 | Vorjahresvergleich + Ansichten | ✅ Deployed | 2026-07-02 |
 | PROJ-16 | Gestapeltes AreaChart | ✅ Deployed | 2026-07-02 |
