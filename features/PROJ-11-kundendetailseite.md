@@ -1,6 +1,6 @@
 # PROJ-11: Kundendetailseite (erweitert)
 
-**Status:** 🔵 Planned — Umsatz-Tab-Neubau (Spec, wartet auf „approved"). Bestellhistorie-Erweiterung weiterhin ✅ Deployed (2026-07-18), siehe Abschnitt „Deploy-Verlauf 2026-07-18"  
+**Status:** 🔵 Planned — Umsatz-Tab-Neubau (Spec approved 2026-07-21, wartet auf `/architecture`). Bestellhistorie-Erweiterung weiterhin ✅ Deployed (2026-07-18), siehe Abschnitt „Deploy-Verlauf 2026-07-18"  
 **Projekt:** TMS 2.0  
 **Priorität:** Hoch  
 **Autor:** Klausi (KI-Entwickler)  
@@ -92,8 +92,10 @@ eigene Kategorie entfällt ersatzlos (keine verlässliche Datenquelle dafür).
 | **Handelsumsatz** | Summe `products.type = 'PRODUCT'` im Zeitraum — anklickbar (filtert Chart) |
 | **Serviceumsatz** | Summe `products.type = 'SERVICE'` im Zeitraum — anklickbar (filtert Chart) |
 | **Nicht zugeordnet** | Differenz Gesamtumsatz − (Handel + Service); nur sichtbar wenn > 0 |
-| **Anzahl Rechnungen** | Distinct `invoices.id` im Zeitraum |
-| **Ø Bestellwert** | Gesamtumsatz ÷ Anzahl Rechnungen im Zeitraum |
+
+*(„Anzahl Rechnungen" und „Ø Bestellwert" wurden im Refine vorgeschlagen,
+vom User aber explizit abgelehnt — nicht Teil dieser Spec, siehe Decision
+Log.)*
 
 Jede KPI-Karte (außer „Nicht zugeordnet") zeigt zusätzlich eine
 **Vergleichs-Badge** zur Vorperiode (grün bei Zuwachs, rot bei Rückgang,
@@ -236,8 +238,7 @@ Tortenstück zeigt nur die Teile aus diesem Fach.
 **Bento Grid:**
 - **Kopfzeile:** Zeitraum-Dropdown (Letzte 12 Monate / Kalenderjahre / Gesamt)
 - **Karte 1 (KPI-Reihe, volle Breite):** Gesamtumsatz (groß), Handelsumsatz,
-  Serviceumsatz, Ø Bestellwert, Anzahl Rechnungen — je mit
-  Vergleichs-Badge; „Nicht zugeordnet" nur wenn > 0
+  Serviceumsatz — je mit Vergleichs-Badge; „Nicht zugeordnet" nur wenn > 0
 - **Karte 2 (groß, breit, darunter):** Chart — dynamisch je nach
   KPI-Auswahl (Standard: Handel/Service gestapelt; bei Klick auf
   Handel/Service-KPI: Rabattgruppen-Split)
@@ -279,7 +280,6 @@ Tortenstück zeigt nur die Teile aus diesem Fach.
 - [ ] Klick auf KPI „Handelsumsatz" filtert Chart auf Handelsumsatz,
   gesplittet nach Rabattgruppe; erneuter Klick hebt Filter auf (Toggle)
 - [ ] Klick auf KPI „Serviceumsatz" filtert Chart analog nach Rabattgruppe
-- [ ] Ø Bestellwert und Anzahl Rechnungen korrekt berechnet
 - [ ] Responsive: KPI-Reihe und Chart passen sich an (Mobile: KPIs
   gestapelt)
 
@@ -329,7 +329,7 @@ src/
           customer-header.tsx       # Kopfzeile mit Name + Status
           address-card.tsx          # Adress-Karte mit Edit-Button
           address-edit-modal.tsx    # Modal für Adress-Edit
-          revenue-kpi-cards.tsx     # KPI-Karten (Gesamt/Handel/Service/Ø/Anzahl) mit Vergleichs-Badge
+          revenue-kpi-cards.tsx     # KPI-Karten (Gesamt/Handel/Service) mit Vergleichs-Badge
           revenue-chart.tsx         # Balkendiagramm (Recharts), dynamisch: Kategorie- oder Rabattgruppen-Split
           revenue-period-selector.tsx # Zeitraum-Dropdown (Letzte 12 Monate / Kalenderjahre / Gesamt)
           order-history-table.tsx   # Bestellhistorie-Tabelle
@@ -388,8 +388,7 @@ SELECT
   SUM(ii.total_price_net) FILTER (WHERE p.type = 'PRODUCT') AS revenue_product,
   SUM(ii.total_price_net) FILTER (WHERE p.type = 'SERVICE') AS revenue_service,
   pg.id AS group_id,
-  SUM(ii.total_price_net) FILTER (WHERE pg.id IS NOT NULL) AS revenue_group,
-  COUNT(DISTINCT i.id) AS invoice_count
+  SUM(ii.total_price_net) FILTER (WHERE pg.id IS NOT NULL) AS revenue_group
 FROM tms.invoice_items ii
 JOIN tms.invoices i ON ii.invoice_id = i.id
 LEFT JOIN tms.products p ON p.number = ii.article_number
@@ -524,11 +523,10 @@ wiederverwenden statt duplizieren.
   Genannt „Rabattgruppe" im Umsatz-Kontext, weil PROJ-26 pro Kunde ×
   Gruppe einen Rabattsatz in `tms.partner_discounts` hinterlegt — keine
   neue Tabelle, nur andere Bezeichnung derselben Gruppierung.
-- **Zusätzliche KPIs vorgeschlagen und übernommen:** „Anzahl Rechnungen"
-  und „Ø Bestellwert" wurden im Refine als sinnvolle Ergänzung
-  identifiziert (User hatte explizit nach weiteren Kennzahlen gefragt)
-  und in die Spec aufgenommen — siehe Open Questions zur finalen
-  Bestätigung.
+- **Zusätzliche KPIs „Anzahl Rechnungen" und „Ø Bestellwert" — abgelehnt:**
+  im Refine vorgeschlagen, vom User bei der Freigabe explizit verneint
+  (2026-07-21). Nicht Teil dieser Spec; KPI-Reihe bleibt bei Gesamtumsatz/
+  Handelsumsatz/Serviceumsatz(/Nicht zugeordnet).
 
 ### Technisch (2026-07-21 — Umsatz-Tab Neubau)
 - **Persistenz über neue, getrackte Materialized View
@@ -564,18 +562,16 @@ wiederverwenden statt duplizieren.
 - [x] Gesamtumsatz zählt ALLE `invoice_items` (nicht nur produkt-zugeordnete) → bestätigt (2026-07-21)
 - [x] Jahresumsatz-Persistenz über neue, getrackte Materialized View → bestätigt (2026-07-21)
 - [x] "Sonderwerkzeug"-Kategorie entfällt ersatzlos → bestätigt (2026-07-21)
-- [ ] Zusätzliche KPIs „Anzahl Rechnungen" und „Ø Bestellwert" — im Refine
-  vorgeschlagen, noch nicht explizit vom User bestätigt. Vor „approved"
-  final absegnen oder streichen.
+- [x] Zusätzliche KPIs „Anzahl Rechnungen" und „Ø Bestellwert" → abgelehnt,
+  nicht Teil der Spec (2026-07-21)
+- [x] Schema-Drift (`invoice_items`, `invoices`, `products`,
+  `position_groups`, `partner_discounts` nur in Produktion, nicht in
+  `supabase/migrations/`) → bleibt separates Ticket, nicht Teil dieses
+  Refines (2026-07-21)
 - [ ] Refresh-Zyklus von `mv_partner_revenue` (nächtlich vorgesehen) —
   reicht das, oder muss der Umsatz nach frischem Easybill-Sync sofort
   aktuell sein? Falls ja: Refresh an bestehenden Sync-Job koppeln statt
   reinem Zeitplan (Detail-Entscheidung im `/architecture`-Schritt).
-- [ ] Bekanntes Schema-Drift-Risiko: `invoice_items`, `invoices`,
-  `products`, `position_groups`, `partner_discounts` existieren nur in
-  Produktion, nicht in `supabase/migrations/`. Soll dieses Refine/die
-  Folge-Architektur diese Lücke nachträglich schließen (Migrationen aus
-  Ist-Zustand generieren), oder bleibt das ein separates Ticket?
 
 ---
 
