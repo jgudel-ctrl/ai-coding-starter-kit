@@ -64,6 +64,23 @@ Reihenfolge: `#FF6B6D` · `#4ECDC4` · `#7C6CFF` · `#F59F00` · `#4DABF7` · `#
 - **Charts:** Donut (Status-Verteilung über Stationen), Linie (Durchlaufzeit/Trend), Balken (Auslastung je Station)
 - **Statusanzeige:** farbige Chips/Badges in Stationsfarbe + Text (nicht nur Farbe → barrierearm)
 
+### 3.1 Seiten-Aufbau: Übersicht oben (VERBINDLICH, global)
+
+Jede Funktionsseite im TMS beginnt mit einer **kompakten Übersicht** — darunter erst die
+eigentliche Funktion (Karten/Listen/Tabellen).
+
+- **Ganz oben:** 2–4 **KPIs** + **optional ein kleiner Chart** — nur wenn er echten Mehrwert bringt
+  (z.B. „X in Warteschlange / Y fertig").
+- **Höhe:** klein halten — **max. ~⅓ des Bildschirms**. Nur ein schneller visueller Überblick über
+  die aktuelle Lage, keine Voll-Auswertung.
+- **Schnell & leichtgewichtig:** kleine Infografiken (KPI-Kacheln, schlanke Balken); **kein schweres
+  Chart-Rendering**. Charts nur, wo sinnvoll.
+- **Dezente Aufbau-Animation** beim Öffnen (rein CSS/`tailwindcss-animate`, gestaffelt) — kein
+  aufwändiges JS.
+- **Erste Bildschirmhälfte bedienbar:** die Funktion beginnt direkt darunter und ist auf
+  Handy/Tablet/PC **ohne Scrollen** im ersten Sichtbereich erreichbar; mehr Inhalt dann per Scroll.
+- **Baustein:** immer `src/components/page-overview.tsx` (`PageOverview`) verwenden — nicht neu bauen.
+
 ## 4. Mobile-First & Tablet (Pflicht)
 
 Die Referenzen sind mobil — Mobile ist Leitmedium, Tablet gleichwertig wichtig (Stations-Terminals).

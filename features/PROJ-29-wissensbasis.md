@@ -126,6 +126,13 @@
 - [ ] **Welche KI/Extraktions-Pipeline** (Modell, Kosten, on-prem vs. API) — Architektur.
 - [ ] Taxonomie fix oder admin-erweiterbar — im Interview „admin-erweiterbar"
   empfohlen; final in Architektur/Umsetzung bestätigen.
+- [ ] **KI-Extraktions-Kosten/-Volumen:** wie viele und wie große PDFs pro Monat? (Beeinflusst
+  Kosten der externen KI-API — geklärt: Claude.)
+- [x] **Asynchrone Verarbeitung:** geklärt (2026-07-20) — Upload ist **selten (~5 PDFs/Jahr)**,
+  daher reicht eine **einfache Verarbeitung mit Fortschrittsanzeige**; keine Warteschlange/
+  Hintergrund-Job nötig.
+- [x] **Bilder:** geklärt (2026-07-20) — Bilder gehören **nicht** in die Wissensbasis, sondern zu den
+  Content-Pieces (PROJ-31/32). Die Wissensbasis bleibt eine reine Fakten-/Text-Sammlung.
 
 ## Decision Log
 
@@ -146,16 +153,209 @@
 <!-- Added by /architecture -->
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| _wird in /architecture ergänzt_ | | |
+| Neue Rolle „Redaktion" ins bestehende Rollen-System (erweitert PROJ-1) | Dediziertes Content-Team, saubere RLS; vom ganzen Content-Epic genutzt | 2026-07-20 |
+| Ablage in Supabase: Einträge/Kategorien in DB (Schema `tms`), PDFs in Supabase Storage | Konsistent mit der App, RLS, keine neue Infrastruktur | 2026-07-20 |
+| KI-Extraktion über externe KI-API (Claude), serverseitig + gekapselt/austauschbar | Beste PDF-Verarbeitung, geringe Betriebskosten; KI-Schlüssel bleibt serverseitig | 2026-07-20 |
+| UI nach bestehendem Verwaltungs-Muster (shadcn-Tabelle/Dialoge/Badges, wie Hersteller-/Nutzer-Verwaltung) | Wiederverwendung bewährter Bausteine, kein Neubau | 2026-07-20 |
+| Extraktion mit Fortschrittsanzeige, aber **ohne Warteschlange** | Upload ist selten (~5 PDFs/Jahr) — einfache Verarbeitung genügt | 2026-07-20 |
+| **Keine Bilder** in der Wissensbasis (bleiben bei den Content-Pieces, PROJ-31/32) | Wissensbasis = reine Fakten-/Text-Sammlung, schlank und wiederverwertbar | 2026-07-20 |
 
 ---
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+**Werkstatt-Vergleich:** Die Wissensbasis ist wie ein gut sortierter Karteikasten in der
+Werkstatt. Ihr werft ein Hersteller-Handbuch in einen „Lese-Automaten" (die KI), der die
+wichtigen technischen Angaben auf einzelne Karteikarten überträgt. Jede Karte landet erst im
+Fach „Entwurf". Ein Redakteur prüft sie und schiebt sie ins Fach „Geprüft" — nur diese Karten
+gelten dann als verlässlich.
+
+### A) Komponenten-Struktur (was auf dem Bildschirm entsteht)
+```
+Wissensbasis-Seite  (nur Rolle Redaktion/Admin)
+├── Kopfzeile
+│   ├── Button „Dokument hochladen"
+│   └── Filter & Suche (Werkzeugart · Material · Status · Volltext)
+├── Upload-Dialog
+│   ├── PDF/Dokument auswählen
+│   ├── Fortschritt „KI liest das Dokument …"
+│   └── Ergebnis: „X Einträge als Entwurf erstellt"
+├── Einträge-Tabelle
+│   ├── Spalten: Titel · Werkzeugart · Material · Quelle · Status (Entwurf/Geprüft)
+│   └── Zeile anklicken → Detail/Bearbeiten
+├── Eintrag Detail/Bearbeiten
+│   ├── Felder: Titel · Werkzeugart · Material · technische Kennwerte ·
+│   │           Beschreibung (eigene Worte) · Originaltext-Auszug · Quelle (Hersteller+Seite)
+│   ├── „Auf Geprüft setzen" (prüft Pflichtfelder)
+│   └── Verwerfen/Löschen
+├── Kategorien-Verwaltung (Admin): Werkzeugart- & Material-Listen pflegen
+└── Leerzustand: „Erstes Dokument hochladen"
+```
+Die Oberfläche folgt dem **bewährten Verwaltungs-Muster** der App (wie Hersteller- und
+Nutzer-Verwaltung) — dieselben Bausteine (Tabelle, Dialoge, Status-Badges), nichts wird neu erfunden.
+
+### B) Datenmodell (in Alltagssprache)
+- **Wissens-Eintrag:** Titel/Begriff · Werkzeugart · Material · mehrere technische Kennwerte
+  (Name→Wert) · Beschreibungstext (destilliert) · Originaltext-Auszug · Quelle (Hersteller +
+  Dokument + Seite) · Status (Entwurf/Geprüft) · wer/wann erstellt & geändert · Verweis auf das
+  Quell-PDF.
+- **Quell-Dokument:** die hochgeladene PDF-Datei selbst (Dateiname, wann, von wem).
+- **Kategorien:** zwei pflegbare Listen — Werkzeugart (Säge/Fräser/Bohrer …) und Material
+  (Holz/Kunststoff/Aluminium …).
+- **Ablage:** Einträge & Kategorien in der bestehenden Datenbank (Supabase, Schema `tms`), die
+  PDF-Dateien im Datei-Speicher (Supabase Storage). Zugriff nur für Redaktion/Admin.
+
+### C) Tech-Entscheidungen (warum so)
+- **Neue Rolle „Redaktion"** ins bestehende Rollen-System (erweitert PROJ-1) — ein dediziertes
+  Content-Team, sauber von den Werkstatt-Rollen getrennt. Einmal jetzt richtig gemacht, nutzt das
+  ganze Content-Epic sie.
+- **Alles in Supabase** (wie der Rest der App): Datenbank für die Karteikarten, Datei-Speicher für
+  die PDFs. Konsistent, abgesichert (RLS), keine neue Infrastruktur.
+- **KI-Extraktion über eine externe KI-API (Claude)**, **serverseitig** ausgeführt: Der Upload
+  landet zuerst im Datei-Speicher, dann liest die KI das PDF und liefert fertige Entwurfs-Einträge
+  zurück. Der KI-Zugangsschlüssel bleibt dabei **immer auf dem Server** (nie im Browser). Der
+  KI-Dienst wird **gekapselt/austauschbar** angebunden — später leicht wechselbar.
+- **Extraktion läuft asynchron mit Fortschrittsanzeige:** große Handbücher dürfen etwas dauern,
+  ohne die Oberfläche zu blockieren.
+- **Datenschutz/Urheberrecht:** Beim Extrahieren wird das PDF kurz an den KI-Dienst geschickt
+  (interne Nutzung) — bleibt als Klärungspunkt vermerkt (siehe Open Questions).
+
+### D) Abhängigkeiten (neue Bausteine)
+- **KI-Anbindung** (Anthropic-SDK für die Extraktion) — einziges wirklich neues Paket.
+- **Datei-Speicher** (Supabase Storage) — bereits im Projekt, kein neues Paket.
+- **Validierung** (Zod) und alle UI-Bausteine (shadcn/ui) — bereits vorhanden.
+
+## Implementierungsnotizen — Frontend (2026-07-20)
+
+- **Neue Rolle „redaktion"** in `src/lib/roles.ts` ergänzt (Label „Redaktion" + Helfer
+  `isRedaktion` / `canManageContent`).
+- **Seite** `src/app/(app)/verwaltung/wissensbasis/page.tsx` — Server-Komponente,
+  rollen-geschützt über `canManageContent` (Redaktion/Admin).
+- **Komponenten** unter `src/components/wissensbasis/`:
+  `wissensbasis-admin-page` (Kopf, Filter/Suche, Tabelle, Leerzustand, Dialog-Steuerung),
+  `wissensbasis-table` (Status-Badges Entwurf/Geprüft), `wissensbasis-entry-modal`
+  (Detail/Bearbeiten inkl. „Auf Geprüft setzen" mit Pflichtfeld-Prüfung Werkzeugart+Material),
+  `wissensbasis-upload-dialog` (PDF-Upload mit „KI liest …"-Fortschritt).
+- **Server-Actions-Gerüst** `src/lib/actions/wissensbasis.ts` mit Typen + **Stubs (Demo-Daten)**
+  fürs Frontend-Review. Die echte Umsetzung (Supabase-Tabellen, PDF in Storage, KI-Extraktion via
+  Claude, RLS für „redaktion") folgt im **`/backend`-Schritt** (Mutationen liefern aktuell bewusst
+  „Wird im Backend-Schritt umgesetzt").
+- **Navigation:** Link „Wissensbasis" im Admin-Menü (`app-header.tsx`). *Offen:* Sichtbarkeit des
+  Nav-Links auch für Rolle „redaktion" (aktuell Admin-Menü) — im Backend/Refine nachziehen.
+- **Neuer globaler Baustein (Design-System 3.1):** `src/components/page-overview.tsx`
+  (`PageOverview`) — kompakte KPI-/Chart-Übersicht (max. ~⅓ Höhe, leichtgewichtig, dezente
+  CSS-Aufbau-Animation) am Kopf **jeder** Seite; Funktion beginnt direkt darunter, ohne Scrollen
+  bedienbar. Auf der Wissensbasis: KPIs (Gesamt/Geprüft/Entwurf) + schlanker „Prüfstand"-Balken.
+  *Bestehende Seiten werden nach und nach nachgezogen.*
+- **Verifiziert:** `tsc --noEmit`, Lint und `npm run build` laufen fehlerfrei; Route
+  `/verwaltung/wissensbasis` kompiliert.
+
+## Implementierungsnotizen — Backend (2026-07-20)
+
+- **Migration** `supabase/migrations/20260720120000_PROJ-29_wissensbasis.sql`:
+  - Rollen-Typ `public.user_role` um **`redaktion`** erweitert (`ADD VALUE IF NOT EXISTS`).
+  - Tabellen `tms.knowledge_categories` (+ Seed Säge/Fräser/Bohrer · Holz/Kunststoff/Aluminium),
+    `tms.knowledge_documents` (Quell-PDFs), `tms.knowledge_entries` (Einträge, `technical_values`
+    als JSONB, Quelle flach, Status entwurf/geprueft) inkl. Indizes.
+  - **RLS** auf allen drei Tabellen + Helferfunktion `tms.is_content_manager()` (Redaktion/Admin,
+    Rollen-Vergleich über `roles::text[]`, damit die neue Enum-Value in derselben Transaktion sicher
+    ist); `GRANT ALL … TO service_role`.
+  - Privater **Storage-Bucket** `wissensbasis` für die PDFs.
+- **Server Actions** `src/lib/actions/wissensbasis.ts` (echt): DB-Zugriffe via
+  `createAdminClient({schema:"tms"})`, Auth/Rollen-Check (`canManageContent`) in **allen** Actions,
+  Suche mit escaptem `.or()`-Filter (wie orders.ts). Upload: PDF → Storage → `knowledge_documents`
+  → **KI-Extraktion** → Einträge als „entwurf".
+- **KI-Extraktion (key-ready)** über die Anthropic-API (direkter `fetch`, kein neues Paket):
+  reine, unit-getestete Logik (Prompt + robustes Parsen) in `wissensbasis-helpers.ts`
+  (`wissensbasis-helpers.test.ts`, 4/4 grün). Ohne Key liefert der Upload eine klare Meldung.
+- **Verifiziert:** `tsc --noEmit`, Lint, Unit-Tests und `npm run build` grün.
+
+### ⚠️ Offene, manuelle Schritte vor Nutzung (nicht durch mich ausgeführt)
+- [ ] **Migration auf die Produktions-DB anwenden** (RLS + Rollen-Erweiterung → braucht dein OK).
+- [ ] **`ANTHROPIC_API_KEY`** (und optional `ANTHROPIC_MODEL`, Default `claude-sonnet-5`) in
+  **`.env.local.example`** (dokumentieren) **und Produktions-Env** hinterlegen — dann ist die
+  KI-Extraktion aktiv. *(Die `.env`-Dateien waren für mich gesperrt.)*
+- [ ] **Nav-Sichtbarkeit** des Wissensbasis-Links auch für Rolle „redaktion" (aktuell Admin-Menü).
 
 ## QA Test Results
-_To be added by /qa_
+
+**Getestet:** 2026-07-20 · **Tester:** QA Engineer (KI)
+**Rahmen:** Der neue App-Code ist noch **nicht deployed** und der `ANTHROPIC_API_KEY` noch nicht in
+der Runtime — ein **voller Live-Browser-Test war daher nicht möglich**. Geprüft wurde: Automatik-
+Tests, Datenbank/RLS gegen die (bereits angewandte) Migration, statischer Security-Audit und
+Kriterien-Abgleich am Code. Live-Verifikation erfolgt nach `/deploy`.
+
+### Automatisierte Tests
+- `npx tsc --noEmit`: ✅ · `npm run build`: ✅ · Lint: ✅
+- Unit-Tests: ✅ **38/38** (inkl. 4 neue für den KI-Extraktions-Parser `wissensbasis-helpers`).
+- **Regression gefunden & behoben (während QA):** `roles.test.ts` prüfte „genau 7 Rollen" — durch
+  die gewollte neue Rolle „redaktion" nun 8. Test aktualisiert (8 Rollen + `redaktion`-Check).
+
+### Datenbank / RLS (Migration live verifiziert)
+- RLS auf allen drei Tabellen **aktiv** ✅; Policies vorhanden (categories 2, documents 1, entries 1).
+- Rollen-Check `is_content_manager()` korrekt (Test-Nutzer admin → true) ✅.
+- Kategorien geseedet (6) ✅; Rolle `redaktion` im Enum ✅; Storage-Bucket `wissensbasis` privat ✅.
+- Production nach der Migration gesund (`/login` 200) — keine Regression an bestehenden Features.
+
+### Security-Audit (statisch, Red-Team)
+- [x] **Auth/Autz:** Seite über `canManageContent` gegated; **jede** Server-Action prüft
+  `requireContentManager`; RLS als zweite Verteidigungslinie. Stark.
+- [x] **Injection:** Suche nutzt `escapeOrFilterValue` + gequotetes `ilike` (BUG-2-sicheres Muster);
+  keine roh eingebettete Nutzereingabe.
+- [x] **Secrets:** `ANTHROPIC_API_KEY` + Service-Role-Key nur serverseitig (`"use server"`), nie im
+  Client. Kein Leak.
+- [x] **XSS:** alle Ausgaben über React-Rendering, kein `dangerouslySetInnerHTML`.
+- [ ] **Upload-Härtung (Low/Medium):** serverseitig fehlt eine explizite **Datei-Typ-/Größen-Prüfung**
+  beim PDF-Upload (nur `accept=".pdf"` im Client). Empfehlung: im Backend MIME-Typ + Maximalgröße
+  prüfen, bevor an die KI/Storage gegeben wird.
+- [ ] **Daten nach extern:** das PDF geht zur Extraktion an die Anthropic-API (interne Nutzung) —
+  siehe Urheberrechts-/Datenschutz-Open-Question.
+
+### Akzeptanzkriterien (Abschnitt 4)
+- [x] Zugang/Rollen (RLS + Seiten-Gate) — statisch + DB bestätigt.
+- [x] Leerzustand, Filter/Suche, Eintrag-Felder, Status-Logik (Entwurf→Geprüft, Pflichtfelder) — im
+  Code umgesetzt; **Live-Nachweis nach Deploy**.
+- [ ] **UNGEPRÜFT (Deploy + Key nötig):** Upload → KI-Extraktion → Entwurfs-Einträge; End-to-End im
+  Browser.
+
+### Bugs
+- 1 Regression (Test-Assertion 7→8 Rollen) — **behoben**. Keine Critical/High-Bugs.
+- 1 Härtungs-Hinweis (Upload-Validierung, Low/Medium) — offen, kein Blocker.
+
+### E2E-Tests
+Noch nicht geschrieben/ausgeführt — benötigen eine laufende Instanz (Deploy) und den KI-Key; als
+Live-Verifikations-Schritt nach `/deploy` vorgesehen. Der KI-Parser ist unit-getestet.
+
+### Ergebnis
+- **Keine Critical/High-Bugs.** Code-seitig **freigabefähig für den Deploy.**
+- **Voll „Production-Ready" erst nach:** (1) `/deploy` der App, (2) `ANTHROPIC_API_KEY` in der
+  Runtime, (3) einmaliger Live-Verifikation (Upload + Extraktion + Freigabe im Browser).
+- Empfehlung: **Deploy freigeben**, danach Live-Verifikation + optional die Upload-Härtung.
+
+### Live-Verifikation nach Deploy (2026-07-20)
+- ✅ Seite `/verwaltung/wissensbasis` **live** — lädt Kategorien/KPIs aus der DB, sauberer
+  Leerzustand, keine Server-5xx. Production/Bestellhistorie unverändert (keine Regression).
+- 🐛 **BUG gefunden & behoben:** PDF-Upload > 1 MB scheiterte an Next.js' Server-Action-Limit
+  (Standard 1 MB) — „Body exceeded 1 MB limit". Hersteller-PDFs sind größer. **Fix:**
+  `serverActions.bodySizeLimit: '25mb'` in `next.config.ts`; neu deployed & verifiziert (Upload
+  erreicht jetzt die KI).
+- 🔧 Fehleranzeige verbessert: Meldungen des KI-Dienstes werden durchgereicht (statt nur „400").
+- ⏳ **KI-Extraktion (Guthaben-Blocker aufgelöst 2026-07-21):** Nach Aufladen des Anthropic-Guthabens
+  End-to-End gegen die echte Leitz-PDF (68 Seiten, 2 MB, 192k Input-Tokens) getestet.
+
+### Live-Verifikation KI-Extraktion (2026-07-21)
+- ✅ Guthaben aktiv (API HTTP 200).
+- 🐛 **BUG-A (kritisch) gefunden & behoben:** `claude-sonnet-5` liefert einen **`thinking`-Block VOR
+  dem `text`-Block**. Der Code las nur `content[0].text` → Thinking-Block → **leerer Text → 0 Einträge**.
+  **Fix:** alle `type === "text"`-Blöcke einsammeln und zusammenführen.
+- 🐛 **BUG-B (hoch) gefunden & behoben:** `max_tokens: 8000` zu klein für 68-Seiten-Dokument →
+  `stop_reason: max_tokens` (abgeschnitten). **Fix:** auf `16000` erhöht; zusätzlich Parser gegen
+  Abschneiden gehärtet (rettet vollständige Einträge statt alles zu verwerfen, + Unit-Test).
+- ✅ **Nach Fix verifiziert:** `stop_reason: end_turn`, **12 saubere Einträge** extrahiert — fachlich
+  korrekt (Kreissägeblätter, Zahnformen, Dünnschnitt-/Vorritzsägen …), **kein Herstellername** (neutral),
+  Werkzeugart/Material/technische Werte befüllt. Unit-Tests 9/9 grün, Build grün.
+- 🔁 **Redeploy nötig**, damit der Fix live greift (Code committet).
 
 ## Deployment
 _To be added by /deploy_
