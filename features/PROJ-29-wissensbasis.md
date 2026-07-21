@@ -341,9 +341,21 @@ Live-Verifikations-Schritt nach `/deploy` vorgesehen. Der KI-Parser ist unit-get
   `serverActions.bodySizeLimit: '25mb'` in `next.config.ts`; neu deployed & verifiziert (Upload
   erreicht jetzt die KI).
 - 🔧 Fehleranzeige verbessert: Meldungen des KI-Dienstes werden durchgereicht (statt nur „400").
-- ⏳ **KI-Extraktion end-to-end noch nicht bestätigt** — Ursache ist **kein Code-Fehler**, sondern
-  **fehlendes Guthaben auf dem Anthropic-Konto** („credit balance too low"). Sobald Credits/Billing
-  hinterlegt sind, läuft die Extraktion sofort. Key ist gültig, Anfrage-Format korrekt.
+- ⏳ **KI-Extraktion (Guthaben-Blocker aufgelöst 2026-07-21):** Nach Aufladen des Anthropic-Guthabens
+  End-to-End gegen die echte Leitz-PDF (68 Seiten, 2 MB, 192k Input-Tokens) getestet.
+
+### Live-Verifikation KI-Extraktion (2026-07-21)
+- ✅ Guthaben aktiv (API HTTP 200).
+- 🐛 **BUG-A (kritisch) gefunden & behoben:** `claude-sonnet-5` liefert einen **`thinking`-Block VOR
+  dem `text`-Block**. Der Code las nur `content[0].text` → Thinking-Block → **leerer Text → 0 Einträge**.
+  **Fix:** alle `type === "text"`-Blöcke einsammeln und zusammenführen.
+- 🐛 **BUG-B (hoch) gefunden & behoben:** `max_tokens: 8000` zu klein für 68-Seiten-Dokument →
+  `stop_reason: max_tokens` (abgeschnitten). **Fix:** auf `16000` erhöht; zusätzlich Parser gegen
+  Abschneiden gehärtet (rettet vollständige Einträge statt alles zu verwerfen, + Unit-Test).
+- ✅ **Nach Fix verifiziert:** `stop_reason: end_turn`, **12 saubere Einträge** extrahiert — fachlich
+  korrekt (Kreissägeblätter, Zahnformen, Dünnschnitt-/Vorritzsägen …), **kein Herstellername** (neutral),
+  Werkzeugart/Material/technische Werte befüllt. Unit-Tests 9/9 grün, Build grün.
+- 🔁 **Redeploy nötig**, damit der Fix live greift (Code committet).
 
 ## Deployment
 _To be added by /deploy_

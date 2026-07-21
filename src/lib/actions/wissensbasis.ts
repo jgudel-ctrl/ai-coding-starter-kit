@@ -222,7 +222,7 @@ export async function uploadKnowledgeDocument(
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 8000,
+        max_tokens: 16000,
         messages: [
           {
             role: "user",
@@ -252,7 +252,17 @@ export async function uploadKnowledgeDocument(
       return { ok: false, error: "KI-Dienst-Fehler (" + res.status + "): " + msg.slice(0, 220) };
     }
     const json = await res.json();
-    const text: string = json?.content?.[0]?.text ?? "";
+    // Wichtig: claude-sonnet-5 kann einen "thinking"-Block VOR dem "text"-Block
+    // liefern. Nur content[0].text zu lesen ergäbe dann leeren Text (0 Einträge).
+    // Darum ALLE Text-Blöcke einsammeln und zusammenführen.
+    const blocks: Array<{ type?: string; text?: string }> = Array.isArray(json?.content)
+      ? json.content
+      : [];
+    const text: string = blocks
+      .filter((b) => b?.type === "text" && typeof b.text === "string")
+      .map((b) => b.text as string)
+      .join("\n")
+      .trim();
     extracted = parseExtractionResponse(text);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "KI-Extraktion fehlgeschlagen." };

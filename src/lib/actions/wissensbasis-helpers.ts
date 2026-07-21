@@ -53,13 +53,30 @@ export function parseExtractionResponse(text: string): ExtractedEntry[] {
   try {
     raw = JSON.parse(cleaned);
   } catch {
-    // Fallback: erstes JSON-Array im Text suchen
+    // Fallback 1: erstes JSON-Array im Text suchen
     const start = cleaned.indexOf("[");
-    const end = cleaned.lastIndexOf("]");
-    if (start === -1 || end === -1 || end <= start) {
+    if (start === -1) {
       throw new Error("Keine verwertbaren Einträge in der KI-Antwort gefunden.");
     }
-    raw = JSON.parse(cleaned.slice(start, end + 1));
+    const end = cleaned.lastIndexOf("]");
+    let parsed = false;
+    if (end > start) {
+      try {
+        raw = JSON.parse(cleaned.slice(start, end + 1));
+        parsed = true;
+      } catch {
+        /* evtl. abgeschnitten → Fallback 2 */
+      }
+    }
+    if (!parsed) {
+      // Fallback 2: Antwort wurde abgeschnitten (max_tokens). Vollständige
+      // Objekte bis zum letzten schließenden "}" retten und Array selbst schließen.
+      const lastObj = cleaned.lastIndexOf("}");
+      if (lastObj <= start) {
+        throw new Error("Keine verwertbaren Einträge in der KI-Antwort gefunden.");
+      }
+      raw = JSON.parse(cleaned.slice(start, lastObj + 1) + "]");
+    }
   }
 
   if (!Array.isArray(raw)) {

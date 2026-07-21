@@ -40,4 +40,13 @@ describe("parseExtractionResponse", () => {
   it("wirft, wenn gar kein Array gefunden wird", () => {
     expect(() => parseExtractionResponse("Ich konnte nichts finden.")).toThrow();
   });
+
+  it("rettet vollständige Einträge, wenn die Antwort abgeschnitten ist (max_tokens)", () => {
+    // Array ohne schließendes "]" und mit halb abgeschnittenem letztem Objekt.
+    const truncated =
+      '[{"title":"Erster","material":"Holz"},{"title":"Zweiter","material":"Alumi';
+    const res = parseExtractionResponse(truncated);
+    expect(res).toHaveLength(1);
+    expect(res[0].title).toBe("Erster");
+  });
 });
