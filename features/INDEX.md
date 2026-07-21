@@ -16,7 +16,7 @@
 | ID | Name | Status | Letzte Änderung |
 |----|------|--------|-----------------|
 | PROJ-1 | Auth & Rollen | ✅ Deployed | 2026-06-18 |
-| PROJ-11 | Kundendetailseite | ✅ Deployed — Bestellhistorie-Erweiterung (Produkttyp-Filter, Gruppierung, Donut-Chart) am 2026-07-18 live verifiziert (Tabelle + Donut = 129 Positionen bei Bod'or KTM, Preise/Rechnungsnr./Filter korrekt). BUG-4/5/6 + Cent→Euro + Pagination behoben. Details: Spec „Deploy-Verlauf 2026-07-18" | 2026-07-18 |
+| PROJ-11 | Kundendetailseite | 🔵 Planned — Umsatz-Tab komplett neu aufgebaut (invoice_items statt nie existierender mv_partner_monthly_revenue), Spec approved 2026-07-21, bereit für /architecture. Bestellhistorie-Erweiterung bleibt ✅ Deployed (2026-07-18, 129 Positionen bei Bod'or KTM verifiziert) | 2026-07-21 |
 | PROJ-14 | Umsatz-Service-Icon Fix | ✅ Deployed | 2026-07-02 |
 | PROJ-15 | Vorjahresvergleich + Ansichten | ✅ Deployed | 2026-07-02 |
 | PROJ-16 | Gestapeltes AreaChart | ✅ Deployed | 2026-07-02 |
